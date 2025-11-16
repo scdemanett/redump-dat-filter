@@ -218,7 +218,9 @@ export function filterDatByRegions(
   };
 
   const xmlContent = xmlBuilder.build({ datafile: filteredDatafile });
-  const xml = [XML_DECLARATION, DATAFILE_DOCTYPE, xmlContent].join('\n').replace(/&apos;/g, "'");
+  let xml = [XML_DECLARATION, DATAFILE_DOCTYPE, xmlContent].join('\n');
+  xml = xml.replace(/&apos;/g, "'");
+  xml = xml.replace(/\r?\n/g, '\r\n');
 
   const filename = deriveFilteredFilename(
     baseFilename,
