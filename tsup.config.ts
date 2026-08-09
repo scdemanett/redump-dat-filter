@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig((options) => ({
   entry: ['electron/main.ts', 'electron/preload.ts'],
   format: ['cjs'],
-  dts: true,
+  dts: false,
   outDir: 'dist-electron',
   sourcemap: false,
   clean: !options.watch,
