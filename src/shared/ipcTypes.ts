@@ -5,7 +5,11 @@ export const IPC_CHANNELS = {
   getCurrent: 'dat:get-current',
   previewFilter: 'dat:preview',
   saveFiltered: 'dat:save',
-  loadFromPath: 'dat:load-path'
+  loadFromPath: 'dat:load-path',
+  listSystems: 'dat:list-systems',
+  refreshSystems: 'dat:refresh-systems',
+  checkUpdates: 'dat:check-updates',
+  downloadSystem: 'dat:download-system'
 } as const;
 
 export interface LoadedDatPayload {
@@ -63,3 +67,45 @@ export interface SaveFilterResponse {
   filename?: string;
 }
 
+export type RedumpSystemListSource = 'live' | 'cache' | 'bundled';
+
+export interface RedumpSystem {
+  name: string;
+  slug: string;
+  downloaded?: boolean;
+  updateAvailable?: boolean;
+  cachedFilename?: string;
+}
+
+export interface ListSystemsResponse {
+  success: boolean;
+  error?: string;
+  systems?: RedumpSystem[];
+  source?: RedumpSystemListSource;
+  fetchedAt?: string;
+}
+
+export interface CheckUpdatesRequest {
+  force?: boolean;
+}
+
+export interface CheckUpdatesResponse {
+  success: boolean;
+  error?: string;
+  systems?: RedumpSystem[];
+  source?: RedumpSystemListSource;
+  fetchedAt?: string;
+  updateCount?: number;
+}
+
+export interface DownloadSystemRequest {
+  slug: string;
+  force?: boolean;
+}
+
+export interface DownloadSystemResponse {
+  success: boolean;
+  error?: string;
+  data?: LoadedDatPayload;
+  fromCache?: boolean;
+}

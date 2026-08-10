@@ -4,6 +4,9 @@ Cross-platform Electron desktop application for trimming Redump.org DAT collecti
 
 ## Features
 
+- Download the latest Redump DAT for a system directly from [redump.info](https://redump.info/downloads) (no manual browser download required).
+- Live system list with disk cache and manual refresh so new Redump systems appear without an app update.
+- Cheap update badges for previously downloaded DATs via HTTP HEAD checks.
 - Parse large Redump DAT (XML) files entirely on the desktop.
 - Automatically detect available regions and offer quick-select checkboxes.
 - Live preview of filtered totals, renamed header/description, and suggested output filename.
@@ -31,7 +34,21 @@ The development script launches Vite for the renderer, watches and rebuilds the 
 
 ## Usage
 
-1. Click **Open DAT** and choose a Redump `.dat` file (a sample is available at `DATs/Microsoft - Xbox - Datfile (2665) (2025-11-07 05-38-55).dat`).
+### Download from Redump
+
+1. In **Download from Redump**, search/select a system. Selection alone does not download.
+2. Click **Download & load** (or **Load** / **Download update** when a cached DAT exists).
+3. The app HEADs the Redump DAT URL when a cache exists; if the `Content-Disposition` filename is unchanged it reuses the cached file. Otherwise it downloads the ZIP, unzips the `.dat`, and loads it into the filter UI.
+4. Use **Refresh systems** to re-scrape the Redump downloads list. Use **Check updates** / **Force refresh** as needed.
+
+Caches live under Electron `userData` (not next to the binary), e.g. `%APPDATA%\redump-dat-filter\cache\` on Windows:
+
+- `redump-systems.json` — system list (refreshed in the background when older than 7 days)
+- `dats/{slug}/` — cached DAT + `meta.json` for HEAD freshness / update badges
+
+### Open a local DAT
+
+1. Click **Open DAT** (or drag-and-drop) and choose a Redump `.dat` file (a sample is available at `DATs/Microsoft - Xbox - Datfile (2665) (2025-11-07 05-38-55).dat`).
 2. Region checkboxes populate from the file. By default the app pre-selects `USA` and `World` when available.
 3. Adjust selections to see an immediate preview showing:
    - Updated header description and suggested filename (e.g. `Microsoft - Xbox (USA, World) - Datfile (1107) (2025-11-07 05-38-55)`).
@@ -83,10 +100,11 @@ These commands redraw the vector-style “R” artwork across multiple sizes, re
 
 ## Tech Stack
 
-- Electron 39
-- React 19 + Vite 6
+- Electron 43
+- React 19 + Vite 8
 - TypeScript + `tsup`
 - `fast-xml-parser` for XML parsing and writing
+- `fflate` for Redump DAT ZIP extraction
 
 ## License
 

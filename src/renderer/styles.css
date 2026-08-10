@@ -28,7 +28,7 @@ main.app-shell {
 }
 
 .app-container {
-  width: min(960px, 100%);
+  width: min(1400px, 100%);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -93,12 +93,21 @@ main.app-shell {
 }
 
 .panel {
+  position: relative;
   padding: 1.5rem;
   border-radius: 18px;
   background: rgba(13, 17, 23, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.12);
   backdrop-filter: blur(14px);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+}
+
+.panel.redump-panel {
+  z-index: 1;
+}
+
+.panel.redump-panel.is-picker-open {
+  z-index: 30;
 }
 
 .panel.empty {
@@ -132,6 +141,206 @@ main.app-shell {
   margin: 0;
   color: #9fb0c9;
   line-height: 1.5;
+}
+
+.panel-description.redump-meta {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.redump-controls {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.system-combobox {
+  position: relative;
+  z-index: 1;
+}
+
+.system-combobox.is-open {
+  z-index: 2;
+}
+
+.system-combobox__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.75);
+  color: #e6edf3;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.system-combobox__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.system-combobox__trigger:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 1px;
+}
+
+.system-combobox__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-combobox__value.is-placeholder {
+  color: #7f8ea3;
+}
+
+.system-combobox__chevron {
+  flex-shrink: 0;
+  color: #8da1c0;
+  font-size: 0.75rem;
+}
+
+.system-combobox__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(13, 17, 23, 0.98);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.55);
+}
+
+.system-combobox__search {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e6edf3;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+}
+
+.system-combobox__search:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 1px;
+}
+
+.system-combobox__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.system-combobox__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e6edf3;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.system-combobox__option:hover,
+.system-combobox__option.is-active {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.system-combobox__option.is-selected {
+  background: rgba(37, 99, 235, 0.28);
+}
+
+.system-combobox__badge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: #93c5fd;
+  text-transform: lowercase;
+}
+
+.system-combobox__badge.is-update {
+  color: #fbbf24;
+}
+
+.system-combobox__empty {
+  margin: 0;
+  padding: 0.65rem;
+  color: #7f8ea3;
+  font-size: 0.9rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field-grow {
+  min-width: 0;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f8ea3;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.75);
+  color: #e6edf3;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 1px;
+}
+
+.redump-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.redump-selection-hint {
+  margin: 0.9rem 0 0;
+  color: #8da1c0;
+  font-size: 0.9rem;
 }
 
 .panel-meta {
@@ -312,6 +521,10 @@ main.app-shell.drag-active .app-container {
 
   .header-actions {
     justify-content: flex-start;
+  }
+
+  .redump-controls {
+    grid-template-columns: 1fr;
   }
 }
 

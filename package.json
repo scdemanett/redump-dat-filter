@@ -1,6 +1,6 @@
 {
   "name": "redump-dat-filter",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Electron desktop app for filtering Redump DAT files by region.",
   "main": "dist-electron/main.js",
   "author": "",
@@ -25,6 +25,7 @@
   ],
   "dependencies": {
     "fast-xml-parser": "^5.10.1",
+    "fflate": "^0.8.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

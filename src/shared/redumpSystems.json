@@ -1,0 +1,422 @@
+[
+  {
+    "name": "3DO Interactive Multiplayer",
+    "slug": "3DO"
+  },
+  {
+    "name": "Acorn Archimedes & Risc PC",
+    "slug": "ARCH"
+  },
+  {
+    "name": "American Laser Games 3DO-based Arcade",
+    "slug": "3DOARCADE"
+  },
+  {
+    "name": "Apple Macintosh",
+    "slug": "MAC"
+  },
+  {
+    "name": "Apple Newton",
+    "slug": "NEWTON"
+  },
+  {
+    "name": "Apple Pippin",
+    "slug": "PIPPIN"
+  },
+  {
+    "name": "Atari Jaguar CD Interactive Multimedia System",
+    "slug": "AJCD"
+  },
+  {
+    "name": "Atari ST series",
+    "slug": "ATARIST"
+  },
+  {
+    "name": "Audio CD",
+    "slug": "AUDIO-CD"
+  },
+  {
+    "name": "Bandai Playdia Quick Interactive System",
+    "slug": "QIS"
+  },
+  {
+    "name": "BD-Video",
+    "slug": "BD-VIDEO"
+  },
+  {
+    "name": "Capcom Play System III",
+    "slug": "CPS3"
+  },
+  {
+    "name": "Commodore Amiga CD",
+    "slug": "ACD"
+  },
+  {
+    "name": "Commodore Amiga CD32",
+    "slug": "CD32"
+  },
+  {
+    "name": "Commodore Amiga CDTV",
+    "slug": "CDTV"
+  },
+  {
+    "name": "Cybiko",
+    "slug": "CYBIKO"
+  },
+  {
+    "name": "Datel PlayStation Cheat Device Updates",
+    "slug": "PSXGS"
+  },
+  {
+    "name": "DVD-Video",
+    "slug": "DVD-VIDEO"
+  },
+  {
+    "name": "Enhanced CD",
+    "slug": "ENHANCED-CD"
+  },
+  {
+    "name": "Fujitsu FM Towns series",
+    "slug": "FMT"
+  },
+  {
+    "name": "Funworld Photo Play",
+    "slug": "FPP"
+  },
+  {
+    "name": "FuRyu & Omron Purikura",
+    "slug": "FPURI"
+  },
+  {
+    "name": "Hasbro iON Educational Gaming System",
+    "slug": "ION"
+  },
+  {
+    "name": "Hasbro VideoNow",
+    "slug": "HVN"
+  },
+  {
+    "name": "Hasbro VideoNow Color",
+    "slug": "HVNC"
+  },
+  {
+    "name": "Hasbro VideoNow Jr.",
+    "slug": "HVNJR"
+  },
+  {
+    "name": "Hasbro VideoNow XP",
+    "slug": "HVNXP"
+  },
+  {
+    "name": "HD DVD-Video",
+    "slug": "HDDVD-VIDEO"
+  },
+  {
+    "name": "IBM PC compatible",
+    "slug": "PC"
+  },
+  {
+    "name": "Incredible Technologies Eagle",
+    "slug": "ITE"
+  },
+  {
+    "name": "Konami e-Amusement",
+    "slug": "KEA"
+  },
+  {
+    "name": "Konami FireBeat",
+    "slug": "KFB"
+  },
+  {
+    "name": "Konami M2",
+    "slug": "KM2"
+  },
+  {
+    "name": "Konami Python 2",
+    "slug": "KP2"
+  },
+  {
+    "name": "Konami System 573",
+    "slug": "KS573"
+  },
+  {
+    "name": "Konami System GV",
+    "slug": "KSGV"
+  },
+  {
+    "name": "Mattel Fisher-Price iXL",
+    "slug": "IXL"
+  },
+  {
+    "name": "Mattel HyperScan",
+    "slug": "HS"
+  },
+  {
+    "name": "Memorex Visual Information System",
+    "slug": "VIS"
+  },
+  {
+    "name": "Merit Industries Megatouch ION",
+    "slug": "MION"
+  },
+  {
+    "name": "Microsoft Pocket PC",
+    "slug": "PPC"
+  },
+  {
+    "name": "Microsoft Xbox",
+    "slug": "XBOX"
+  },
+  {
+    "name": "Microsoft Xbox 360",
+    "slug": "XBOX360"
+  },
+  {
+    "name": "Microsoft Xbox One",
+    "slug": "XBOXONE"
+  },
+  {
+    "name": "Microsoft Xbox Series X",
+    "slug": "XBOXSX"
+  },
+  {
+    "name": "MP3 Audio Disc",
+    "slug": "MP3"
+  },
+  {
+    "name": "Namco Purikura",
+    "slug": "NPURI"
+  },
+  {
+    "name": "Namco System 22",
+    "slug": "NS22"
+  },
+  {
+    "name": "Namco System 246",
+    "slug": "NS246"
+  },
+  {
+    "name": "Namco System 256",
+    "slug": "NS256"
+  },
+  {
+    "name": "Namco · Sega · Nintendo Triforce",
+    "slug": "TRF"
+  },
+  {
+    "name": "Navisoft Naviken",
+    "slug": "NAVI"
+  },
+  {
+    "name": "NEC PC Engine CD & TurboGrafx CD",
+    "slug": "PCE"
+  },
+  {
+    "name": "NEC PC-88 series",
+    "slug": "PC-88"
+  },
+  {
+    "name": "NEC PC-98 series",
+    "slug": "PC-98"
+  },
+  {
+    "name": "NEC PC-FX & PC-FXGA",
+    "slug": "PC-FX"
+  },
+  {
+    "name": "New Jatre CD-i based Arcade",
+    "slug": "NEWJATRE"
+  },
+  {
+    "name": "Nintendo GameCube",
+    "slug": "GC"
+  },
+  {
+    "name": "Nintendo Wii",
+    "slug": "WII"
+  },
+  {
+    "name": "Nintendo Wii U",
+    "slug": "WIIU"
+  },
+  {
+    "name": "Palm OS",
+    "slug": "PALM"
+  },
+  {
+    "name": "Panasonic M2",
+    "slug": "M2"
+  },
+  {
+    "name": "PC-based Arcade",
+    "slug": "PCARCADE"
+  },
+  {
+    "name": "Philips CD-i",
+    "slug": "CDI"
+  },
+  {
+    "name": "Photo CD",
+    "slug": "PHOTO-CD"
+  },
+  {
+    "name": "Playmaji Polymega",
+    "slug": "POLYMEGA"
+  },
+  {
+    "name": "Psion",
+    "slug": "PSION"
+  },
+  {
+    "name": "Sega ALLS",
+    "slug": "ALLS"
+  },
+  {
+    "name": "Sega Chihiro",
+    "slug": "CHIHIRO"
+  },
+  {
+    "name": "Sega Dreamcast",
+    "slug": "DC"
+  },
+  {
+    "name": "Sega Lindbergh",
+    "slug": "LINDBERGH"
+  },
+  {
+    "name": "Sega Lindbergh Satellite Terminal PC",
+    "slug": "LINDPC"
+  },
+  {
+    "name": "Sega Mega CD & Sega CD",
+    "slug": "MCD"
+  },
+  {
+    "name": "Sega Naomi",
+    "slug": "NAOMI"
+  },
+  {
+    "name": "Sega Naomi 2",
+    "slug": "NAOMI2"
+  },
+  {
+    "name": "Sega Naomi Satellite Terminal PC",
+    "slug": "NAOMIPC"
+  },
+  {
+    "name": "Sega Nu",
+    "slug": "NU"
+  },
+  {
+    "name": "Sega Nu 1.1",
+    "slug": "NU11"
+  },
+  {
+    "name": "Sega Nu 2",
+    "slug": "NU2"
+  },
+  {
+    "name": "Sega Nu SX",
+    "slug": "NUSX"
+  },
+  {
+    "name": "Sega Prologue 21 Multimedia Karaoke System",
+    "slug": "SP21"
+  },
+  {
+    "name": "Sega RingEdge",
+    "slug": "SRE"
+  },
+  {
+    "name": "Sega RingEdge 2",
+    "slug": "SRE2"
+  },
+  {
+    "name": "Sega RingWide",
+    "slug": "SRW"
+  },
+  {
+    "name": "Sega Saturn",
+    "slug": "SS"
+  },
+  {
+    "name": "SGI Indigo series",
+    "slug": "INDIGO"
+  },
+  {
+    "name": "Sharp X68000",
+    "slug": "X68K"
+  },
+  {
+    "name": "Sharp Zaurus",
+    "slug": "ZAURUS"
+  },
+  {
+    "name": "SNK Neo Geo CD",
+    "slug": "NGCD"
+  },
+  {
+    "name": "Sony Electronic Book",
+    "slug": "SEB"
+  },
+  {
+    "name": "Sony PlayStation",
+    "slug": "PSX"
+  },
+  {
+    "name": "Sony PlayStation 2",
+    "slug": "PS2"
+  },
+  {
+    "name": "Sony PlayStation 3",
+    "slug": "PS3"
+  },
+  {
+    "name": "Sony PlayStation 4",
+    "slug": "PS4"
+  },
+  {
+    "name": "Sony PlayStation 5",
+    "slug": "PS5"
+  },
+  {
+    "name": "Sony PlayStation Portable",
+    "slug": "PSP"
+  },
+  {
+    "name": "Sun Microsystems Ultra",
+    "slug": "ULTRA"
+  },
+  {
+    "name": "Symbian",
+    "slug": "SYMBIAN"
+  },
+  {
+    "name": "TAB-Austria Quizard",
+    "slug": "QUIZARD"
+  },
+  {
+    "name": "Texas Instruments TI series",
+    "slug": "TI"
+  },
+  {
+    "name": "Tomy Kiss-Site",
+    "slug": "KSITE"
+  },
+  {
+    "name": "Video CD",
+    "slug": "VCD"
+  },
+  {
+    "name": "VM Labs Nuon",
+    "slug": "NUON"
+  },
+  {
+    "name": "VTech V.Flash & V.Smile Pro",
+    "slug": "VFLASH"
+  },
+  {
+    "name": "ZAPiT Games Game Wave Family Entertainment System",
+    "slug": "GAMEWAVE"
+  }
+]

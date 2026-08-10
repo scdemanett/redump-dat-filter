@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 
-import type { DatHeader, FilterSummary, LoadedDatPayload } from '../shared';
+import type {
+  DatHeader,
+  FilterSummary,
+  LoadedDatPayload,
+  RedumpSystem,
+  RedumpSystemListSource
+} from '../shared';
 
 const numberFormatter = new Intl.NumberFormat();
 const preferredDefaultRegions = ['USA', 'World'];
@@ -20,18 +26,48 @@ function App() {
   const [info, setInfo] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
 
-  const previewRequestId = useRef(0);
+  const [systems, setSystems] = useState<RedumpSystem[]>([]);
+  const [systemsSource, setSystemsSource] = useState<RedumpSystemListSource | null>(null);
+  const [systemsFetchedAt, setSystemsFetchedAt] = useState<string | undefined>();
+  const [systemsLoading, setSystemsLoading] = useState(true);
+  const [systemsRefreshing, setSystemsRefreshing] = useState(false);
+  const [updatesChecking, setUpdatesChecking] = useState(false);
+  const [systemQuery, setSystemQuery] = useState('');
+  const [selectedSlug, setSelectedSlug] = useState('');
+  const [systemPickerOpen, setSystemPickerOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  const hydrateLoadedDat = useCallback((data: LoadedDatPayload) => {
+  const previewRequestId = useRef(0);
+  const systemPickerRef = useRef<HTMLDivElement | null>(null);
+  const systemSearchRef = useRef<HTMLInputElement | null>(null);
+
+  const hydrateLoadedDat = useCallback((data: LoadedDatPayload, message?: string) => {
     setLoadedDat(data);
     const defaults = pickDefaultRegions(data.regions);
     setSelectedRegions(defaults);
     setPreviewHeader(null);
     setPreviewSummary(null);
     setPreviewFilename(null);
-    setInfo(`Loaded ${data.originalFilename}`);
+    setInfo(message ?? `Loaded ${data.originalFilename}`);
     setError(null);
   }, []);
+
+  const applySystemsResponse = useCallback(
+    (response: {
+      systems?: RedumpSystem[];
+      source?: RedumpSystemListSource;
+      fetchedAt?: string;
+    }) => {
+      if (response.systems) {
+        setSystems(response.systems);
+      }
+      if (response.source) {
+        setSystemsSource(response.source);
+      }
+      setSystemsFetchedAt(response.fetchedAt);
+    },
+    []
+  );
 
   useEffect(() => {
     window.datAPI
@@ -48,6 +84,54 @@ function App() {
   }, [hydrateLoadedDat]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadSystemsAndUpdates() {
+      setSystemsLoading(true);
+      try {
+        const list = await window.datAPI.listSystems();
+        if (cancelled) {
+          return;
+        }
+        if (!list.success) {
+          setError(list.error ?? 'Failed to load Redump systems.');
+        } else {
+          applySystemsResponse(list);
+        }
+
+        setUpdatesChecking(true);
+        const updates = await window.datAPI.checkUpdates(false);
+        if (cancelled) {
+          return;
+        }
+        if (updates.success) {
+          applySystemsResponse(updates);
+          if ((updates.updateCount ?? 0) > 0) {
+            setInfo(
+              `${updates.updateCount} downloaded DAT${updates.updateCount === 1 ? '' : 's'} have updates available.`
+            );
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          setError(`Failed to load Redump systems: ${extractMessage(err)}`);
+        }
+      } finally {
+        if (!cancelled) {
+          setSystemsLoading(false);
+          setUpdatesChecking(false);
+        }
+      }
+    }
+
+    void loadSystemsAndUpdates();
+    return () => {
+      cancelled = true;
+    };
+  }, [applySystemsResponse]);
+
+  useEffect(() => {
     const preventDefault = (event: DragEvent) => {
       event.preventDefault();
     };
@@ -60,6 +144,39 @@ function App() {
       window.removeEventListener('drop', preventDefault);
     };
   }, []);
+
+  useEffect(() => {
+    if (!systemPickerOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!systemPickerRef.current?.contains(event.target as Node)) {
+        setSystemPickerOpen(false);
+        setSystemQuery('');
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSystemPickerOpen(false);
+        setSystemQuery('');
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [systemPickerOpen]);
+
+  useEffect(() => {
+    if (systemPickerOpen) {
+      systemSearchRef.current?.focus();
+    }
+  }, [systemPickerOpen]);
 
   useEffect(() => {
     if (!loadedDat) {
@@ -108,6 +225,27 @@ function App() {
       });
   }, [loadedDat, selectedRegions]);
 
+  const filteredSystems = useMemo(() => {
+    const query = systemQuery.trim().toLowerCase();
+    if (!query) {
+      return systems;
+    }
+    return systems.filter(
+      (system) =>
+        system.name.toLowerCase().includes(query) || system.slug.toLowerCase().includes(query)
+    );
+  }, [systemQuery, systems]);
+
+  const selectedSystem = useMemo(
+    () => systems.find((system) => system.slug === selectedSlug) ?? null,
+    [selectedSlug, systems]
+  );
+
+  const updateCount = useMemo(
+    () => systems.filter((system) => system.updateAvailable).length,
+    [systems]
+  );
+
   const handleOpenDat = useCallback(async () => {
     setOpening(true);
     setSaving(false);
@@ -134,6 +272,84 @@ function App() {
       setOpening(false);
     }
   }, [hydrateLoadedDat]);
+
+  const handleRefreshSystems = useCallback(async () => {
+    setSystemsRefreshing(true);
+    setError(null);
+    try {
+      const response = await window.datAPI.refreshSystems();
+      if (response.systems) {
+        applySystemsResponse(response);
+      }
+      if (!response.success) {
+        setError(response.error ?? 'Failed to refresh Redump systems.');
+        return;
+      }
+      setInfo(`System list updated (${response.systems?.length ?? 0} systems).`);
+    } catch (err) {
+      setError(`Failed to refresh Redump systems: ${extractMessage(err)}`);
+    } finally {
+      setSystemsRefreshing(false);
+    }
+  }, [applySystemsResponse]);
+
+  const handleCheckUpdates = useCallback(async () => {
+    setUpdatesChecking(true);
+    setError(null);
+    try {
+      const response = await window.datAPI.checkUpdates(true);
+      if (!response.success) {
+        setError(response.error ?? 'Failed to check for DAT updates.');
+        return;
+      }
+      applySystemsResponse(response);
+      const count = response.updateCount ?? 0;
+      setInfo(
+        count > 0
+          ? `${count} downloaded DAT${count === 1 ? '' : 's'} have updates available.`
+          : 'All downloaded DATs are up to date.'
+      );
+    } catch (err) {
+      setError(`Failed to check for DAT updates: ${extractMessage(err)}`);
+    } finally {
+      setUpdatesChecking(false);
+    }
+  }, [applySystemsResponse]);
+
+  const handleDownloadSystem = useCallback(
+    async (force: boolean) => {
+      if (!selectedSlug) {
+        return;
+      }
+
+      setDownloading(true);
+      setError(null);
+      setInfo(null);
+
+      try {
+        const response = await window.datAPI.downloadSystem(selectedSlug, force);
+        if (!response.success || !response.data) {
+          setError(response.error ?? 'Failed to download Redump DAT.');
+          return;
+        }
+
+        const message = response.fromCache
+          ? `Loaded cached ${response.data.originalFilename}`
+          : `Downloaded ${response.data.originalFilename}`;
+        hydrateLoadedDat(response.data, message);
+
+        const refreshed = await window.datAPI.listSystems();
+        if (refreshed.success) {
+          applySystemsResponse(refreshed);
+        }
+      } catch (err) {
+        setError(`Failed to download Redump DAT: ${extractMessage(err)}`);
+      } finally {
+        setDownloading(false);
+      }
+    },
+    [applySystemsResponse, hydrateLoadedDat, selectedSlug]
+  );
 
   const handleToggleRegion = useCallback((region: string) => {
     setSelectedRegions((current) =>
@@ -250,6 +466,11 @@ function App() {
 
   const canPreview = !!loadedDat;
   const canSave = !!previewSummary && !previewLoading && !saving;
+  const downloadLabel = selectedSystem?.downloaded
+    ? selectedSystem.updateAvailable
+      ? 'Download update'
+      : 'Load'
+    : 'Download & load';
 
   return (
     <main
@@ -266,7 +487,7 @@ function App() {
             <p>Filter Redump DAT collections by region and export a trimmed datafile.</p>
           </div>
           <div className="header-actions">
-            <button type="button" className="button" onClick={handleOpenDat} disabled={opening}>
+            <button type="button" className="button" onClick={handleOpenDat} disabled={opening || downloading}>
               {opening ? 'Opening…' : 'Open DAT'}
             </button>
             <button type="button" className="button ghost" onClick={handleSaveFiltered} disabled={!canSave}>
@@ -286,6 +507,158 @@ function App() {
             {info}
           </div>
         )}
+
+        <section className={`panel redump-panel ${systemPickerOpen ? 'is-picker-open' : ''}`}>
+          <header className="panel-header">
+            <div>
+              <h3>Download from Redump</h3>
+              <p className="panel-description redump-meta">
+                {systemsLoading
+                  ? 'Loading system list…'
+                  : `${numberFormatter.format(systems.length)} systems · source: ${systemsSource ?? '—'}${
+                      systemsFetchedAt ? ` · ${formatFetchedAt(systemsFetchedAt)}` : ''
+                    }`}
+                {updateCount > 0 ? ` · ${updateCount} update${updateCount === 1 ? '' : 's'} available` : ''}
+                {updatesChecking ? ' · checking updates…' : ''}
+              </p>
+            </div>
+            <div className="panel-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={handleRefreshSystems}
+                disabled={systemsRefreshing || systemsLoading}
+              >
+                {systemsRefreshing ? 'Refreshing…' : 'Refresh systems'}
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={handleCheckUpdates}
+                disabled={updatesChecking || systemsLoading}
+              >
+                {updatesChecking ? 'Checking…' : 'Check updates'}
+              </button>
+            </div>
+          </header>
+
+          <div className="redump-controls">
+            <div className="field field-grow" ref={systemPickerRef}>
+              <span className="field-label">System</span>
+              <div className={`system-combobox ${systemPickerOpen ? 'is-open' : ''}`}>
+                <button
+                  type="button"
+                  className="system-combobox__trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded={systemPickerOpen}
+                  disabled={systemsLoading || systems.length === 0}
+                  onClick={() => {
+                    setSystemPickerOpen((open) => {
+                      const next = !open;
+                      if (!next) {
+                        setSystemQuery('');
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <span
+                    className={`system-combobox__value ${selectedSystem ? '' : 'is-placeholder'}`}
+                  >
+                    {selectedSystem ? formatSystemOption(selectedSystem) : 'Select a system…'}
+                  </span>
+                  <span className="system-combobox__chevron" aria-hidden>
+                    {systemPickerOpen ? '▴' : '▾'}
+                  </span>
+                </button>
+
+                {systemPickerOpen && (
+                  <div className="system-combobox__panel" role="listbox">
+                    <input
+                      ref={systemSearchRef}
+                      type="search"
+                      className="system-combobox__search"
+                      value={systemQuery}
+                      onChange={(event) => setSystemQuery(event.target.value)}
+                      placeholder="Search systems…"
+                      aria-label="Search systems"
+                    />
+                    {filteredSystems.length === 0 ? (
+                      <p className="system-combobox__empty">No systems match your search.</p>
+                    ) : (
+                      <ul className="system-combobox__list">
+                        {filteredSystems.map((system) => {
+                          const selected = system.slug === selectedSlug;
+                          const badge = system.updateAvailable
+                            ? 'update'
+                            : system.downloaded
+                              ? 'cached'
+                              : null;
+                          return (
+                            <li key={system.slug}>
+                              <button
+                                type="button"
+                                className={`system-combobox__option ${selected ? 'is-selected' : ''}`}
+                                role="option"
+                                aria-selected={selected}
+                                onClick={() => {
+                                  setSelectedSlug(system.slug);
+                                  setSystemPickerOpen(false);
+                                  setSystemQuery('');
+                                }}
+                              >
+                                <span>{system.name}</span>
+                                {badge && (
+                                  <span
+                                    className={`system-combobox__badge ${
+                                      badge === 'update' ? 'is-update' : ''
+                                    }`}
+                                  >
+                                    {badge}
+                                  </span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="redump-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => handleDownloadSystem(false)}
+                disabled={!selectedSlug || downloading || opening}
+              >
+                {downloading ? 'Working…' : downloadLabel}
+              </button>
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => handleDownloadSystem(true)}
+                disabled={!selectedSlug || downloading || opening}
+                title="Force re-download from Redump"
+              >
+                Force refresh
+              </button>
+            </div>
+          </div>
+
+          {selectedSystem && (
+            <p className="redump-selection-hint">
+              {selectedSystem.updateAvailable
+                ? 'Update available for this system’s cached DAT.'
+                : selectedSystem.downloaded
+                  ? 'Cached DAT available — Load will HEAD-check then reuse cache if unchanged.'
+                  : 'Selection alone does not download. Click Download & load to fetch and filter.'}
+            </p>
+          )}
+        </section>
 
         {loadedDat ? (
           <>
@@ -384,7 +757,9 @@ function App() {
         ) : (
           <section className="panel empty">
             <h2>No DAT Loaded</h2>
-            <p>Use the “Open DAT” button to choose a Redump DAT file and load its available regions.</p>
+            <p>
+              Download a system from Redump above, or use “Open DAT” / drag-and-drop to load a local Redump DAT file.
+            </p>
           </section>
         )}
       </div>
@@ -403,6 +778,24 @@ function App() {
       )}
     </main>
   );
+}
+
+function formatSystemOption(system: RedumpSystem): string {
+  const flags: string[] = [];
+  if (system.updateAvailable) {
+    flags.push('update');
+  } else if (system.downloaded) {
+    flags.push('cached');
+  }
+  return flags.length > 0 ? `${system.name} (${flags.join(', ')})` : system.name;
+}
+
+function formatFetchedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return `as of ${date.toLocaleString()}`;
 }
 
 function extractMessage(error: unknown): string {
@@ -447,4 +840,3 @@ function extractDatPath(dataTransfer: DataTransfer | null): string | null {
 }
 
 export default App;
-

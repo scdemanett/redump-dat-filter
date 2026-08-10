@@ -9,15 +9,27 @@ import {
   type FilteredDatResult,
   type ParsedDat,
   IPC_CHANNELS,
+  type CheckUpdatesRequest,
+  type CheckUpdatesResponse,
   type CurrentDatResponse,
+  type DownloadSystemRequest,
+  type DownloadSystemResponse,
   type FilterPreviewRequest,
   type FilterPreviewResponse,
+  type ListSystemsResponse,
   type LoadedDatPayload,
   type LoadFromPathResponse,
   type OpenDatResponse,
   type SaveFilterRequest,
   type SaveFilterResponse
 } from '../src/shared';
+import {
+  checkDownloadedUpdates,
+  downloadOrLoadSystem,
+  getSystemList,
+  maybeRefreshSystemListInBackground,
+  refreshSystemList
+} from './redumpDownload';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const DAT_FILE_FILTER = {
@@ -69,6 +81,7 @@ const createMainWindow = async () => {
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  maybeRefreshSystemListInBackground();
 
   createMainWindow().catch((error) => {
     console.error('Failed to create main window', error);
@@ -99,6 +112,10 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.getCurrent, handleGetCurrentDat);
   ipcMain.handle(IPC_CHANNELS.previewFilter, handlePreviewFilter);
   ipcMain.handle(IPC_CHANNELS.saveFiltered, handleSaveFiltered);
+  ipcMain.handle(IPC_CHANNELS.listSystems, handleListSystems);
+  ipcMain.handle(IPC_CHANNELS.refreshSystems, handleRefreshSystems);
+  ipcMain.handle(IPC_CHANNELS.checkUpdates, handleCheckUpdates);
+  ipcMain.handle(IPC_CHANNELS.downloadSystem, handleDownloadSystem);
 }
 
 function unregisterIpcHandlers() {
@@ -108,6 +125,10 @@ function unregisterIpcHandlers() {
   ipcMain.removeHandler(IPC_CHANNELS.getCurrent);
   ipcMain.removeHandler(IPC_CHANNELS.previewFilter);
   ipcMain.removeHandler(IPC_CHANNELS.saveFiltered);
+  ipcMain.removeHandler(IPC_CHANNELS.listSystems);
+  ipcMain.removeHandler(IPC_CHANNELS.refreshSystems);
+  ipcMain.removeHandler(IPC_CHANNELS.checkUpdates);
+  ipcMain.removeHandler(IPC_CHANNELS.downloadSystem);
 }
 
 async function handleOpenDat(event: IpcMainInvokeEvent): Promise<OpenDatResponse> {
@@ -244,6 +265,108 @@ async function handleSaveFiltered(
   }
 }
 
+async function handleListSystems(): Promise<ListSystemsResponse> {
+  try {
+    const result = await getSystemList({ force: false });
+    return {
+      success: true,
+      systems: result.systems,
+      source: result.source,
+      fetchedAt: result.fetchedAt
+    };
+  } catch (error) {
+    console.error('Failed to list Redump systems', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to list Redump systems.'
+    };
+  }
+}
+
+async function handleRefreshSystems(): Promise<ListSystemsResponse> {
+  try {
+    const result = await refreshSystemList();
+    return {
+      success: true,
+      systems: result.systems,
+      source: result.source,
+      fetchedAt: result.fetchedAt
+    };
+  } catch (error) {
+    console.error('Failed to refresh Redump systems', error);
+    try {
+      const fallback = await getSystemList({ force: false });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to refresh Redump systems.',
+        systems: fallback.systems,
+        source: fallback.source,
+        fetchedAt: fallback.fetchedAt
+      };
+    } catch {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to refresh Redump systems.'
+      };
+    }
+  }
+}
+
+async function handleCheckUpdates(
+  _event: IpcMainInvokeEvent,
+  request: CheckUpdatesRequest = {}
+): Promise<CheckUpdatesResponse> {
+  try {
+    const result = await checkDownloadedUpdates({ force: Boolean(request.force) });
+    const updateCount = result.systems.filter((system) => system.updateAvailable).length;
+    return {
+      success: true,
+      systems: result.systems,
+      source: result.source,
+      fetchedAt: result.fetchedAt,
+      updateCount
+    };
+  } catch (error) {
+    console.error('Failed to check Redump DAT updates', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to check DAT updates.'
+    };
+  }
+}
+
+async function handleDownloadSystem(
+  _event: IpcMainInvokeEvent,
+  request: DownloadSystemRequest
+): Promise<DownloadSystemResponse> {
+  if (!request?.slug) {
+    return { success: false, error: 'No system selected.' };
+  }
+
+  try {
+    const downloaded = await downloadOrLoadSystem(request.slug, { force: Boolean(request.force) });
+    const parsed = parseDat(downloaded.xml);
+    const state: LoadedDatState = {
+      sourcePath: downloaded.sourcePath,
+      originalFilename: downloaded.originalFilename,
+      parsed
+    };
+    loadedDat = state;
+
+    return {
+      success: true,
+      data: buildLoadedPayload(state),
+      fromCache: downloaded.fromCache
+    };
+  } catch (error) {
+    console.error('Failed to download Redump DAT', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to download Redump DAT.'
+    };
+  }
+}
+
 async function loadStateFromFile(filePath: string): Promise<LoadedDatState> {
   await fs.access(filePath);
   const fileContent = await fs.readFile(filePath, 'utf-8');
@@ -272,4 +395,3 @@ function buildLoadedPayload(state: LoadedDatState): LoadedDatPayload {
     versionLabel: state.parsed.versionLabel
   };
 }
-

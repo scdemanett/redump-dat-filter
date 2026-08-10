@@ -2,8 +2,11 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import {
   IPC_CHANNELS,
+  type CheckUpdatesResponse,
   type CurrentDatResponse,
+  type DownloadSystemResponse,
   type FilterPreviewResponse,
+  type ListSystemsResponse,
   type LoadFromPathResponse,
   type OpenDatResponse,
   type SaveFilterResponse
@@ -34,6 +37,15 @@ const api = {
     ipcRenderer.invoke(IPC_CHANNELS.saveFiltered, {
       regions,
       targetPath
+    }),
+  listSystems: (): Promise<ListSystemsResponse> => ipcRenderer.invoke(IPC_CHANNELS.listSystems),
+  refreshSystems: (): Promise<ListSystemsResponse> => ipcRenderer.invoke(IPC_CHANNELS.refreshSystems),
+  checkUpdates: (force?: boolean): Promise<CheckUpdatesResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.checkUpdates, { force: Boolean(force) }),
+  downloadSystem: (slug: string, force?: boolean): Promise<DownloadSystemResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.downloadSystem, {
+      slug,
+      force: Boolean(force)
     })
 };
 
@@ -46,4 +58,3 @@ declare global {
     datAPI: DatAPI;
   }
 }
-
