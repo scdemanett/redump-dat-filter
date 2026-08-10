@@ -80,8 +80,8 @@ If no entries match a selection the app warns before attempting to write a file.
 
 Artifacts are written to the `release/` directory with these names:
 
-- Installers: `redump-dat-filter-setup-{VERSION}-{PLATFORM}.{ext}` (e.g. `redump-dat-filter-setup-0.3.3-win-x64.exe`)
-- Portable builds: `redump-dat-filter-unpacked-{VERSION}-{PLATFORM}.zip` (e.g. `redump-dat-filter-unpacked-0.3.3-mac-arm64.zip`)
+- Installers: `redump-dat-filter-setup-{VERSION}-{PLATFORM}.{ext}` (e.g. `redump-dat-filter-setup-0.3.4-win-x64.exe`)
+- Portable builds: `redump-dat-filter-unpacked-{VERSION}-{PLATFORM}.zip` (e.g. `redump-dat-filter-unpacked-0.3.4-mac-arm64.zip`)
 
 `{PLATFORM}` is `{os}-{arch}` such as `win-x64`, `mac-arm64`, or `linux-x64`. Portable zips contain the unpacked app — extract and run the executable without installing.
 

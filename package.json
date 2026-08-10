@@ -1,6 +1,6 @@
 {
   "name": "redump-dat-filter",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Electron desktop app for filtering Redump DAT files by region.",
   "main": "dist-electron/main.js",
   "author": "Steven Demanett",
