@@ -98,7 +98,7 @@ macOS builds are unsigned. On first launch you may need to right-click the app a
 
 ### App updates
 
-Packaged builds check GitHub Releases for new app versions on startup. Installed builds (NSIS, DMG, AppImage) can download and install updates in-app. Portable zip builds are notified when a newer version exists and can open the release page to download manually.
+Packaged builds check GitHub Releases for new app versions on startup. Installed builds (NSIS, AppImage, macOS apps in `/Applications`) can download and install updates in-app. Unpacked portable zips use the same release check but open the release page to download manually.
 
 Dev builds (`npm run dev`) do not check for app updates.
 
