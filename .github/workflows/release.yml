@@ -74,14 +74,37 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
+      - name: List release artifacts
+        run: find release-artifacts -type f | sort
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            release-artifacts/redump-dat-filter-setup-*
-            release-artifacts/redump-dat-filter-unpacked-*
-            release-artifacts/latest*.yml
-            release-artifacts/*.blockmap
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then
+            prerelease=true
+          fi
+
+          mapfile -t files < <(find release-artifacts -type f | sort -u)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No release artifacts found."
+            exit 1
+          fi
+
+          printf 'Uploading %s artifact(s):\n' "${#files[@]}"
+          printf ' - %s\n' "${files[@]}"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists."
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --generate-notes \
+              --prerelease="$prerelease"
+          fi
+
+          gh release upload "$tag" "${files[@]}" --clobber
