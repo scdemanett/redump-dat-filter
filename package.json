@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "Electron desktop app for filtering Redump DAT files by region.",
   "main": "dist-electron/main.js",
-  "author": "",
+  "author": "Steven Demanett",
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:watch:main\" \"npm:dev:electron\"",
@@ -14,7 +14,7 @@
     "build:main": "tsup --config tsup.config.ts",
     "build:renderer": "node scripts/vite-build.mjs",
     "clean": "rimraf dist dist-electron",
-    "package": "npm run build && electron-builder",
+    "package": "npm run build && electron-builder && node scripts/rename-release-artifacts.mjs",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -69,9 +69,6 @@
       "provider": "github",
       "owner": "scdemanett",
       "repo": "redump-dat-filter"
-    },
-    "zip": {
-      "artifactName": "redump-dat-filter-unpacked-${version}-${os}-${arch}.${ext}"
     },
     "mac": {
       "target": [

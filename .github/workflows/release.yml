@@ -48,6 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Rename portable zip artifacts
+        run: node scripts/rename-release-artifacts.mjs
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
