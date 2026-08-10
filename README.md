@@ -82,21 +82,25 @@ Artifacts are written to the `release/` directory. Update `build/` with platform
 
 ## Icons
 
-The `build/` directory includes pre-generated platform assets:
+Source artwork lives in `build/`:
 
-- `icon.png` (512×512) base artwork
+- `icon.svg` — vector mark used in the app header
+- `icon.png` — 1024×1024 master used to generate platform icons
+
+Generated packaging assets:
+
 - `icon.ico` for Windows
 - `icon.icns` for macOS
-- `icon_*.png` helper sizes used to build the icon set
+- `icon_*.png` size variants used while building those containers
 
-To regenerate the icon set (requires Windows for the PowerShell drawing script):
+Regenerate after replacing `icon.png`:
 
 ```powershell
 pwsh ./scripts/generate-icons.ps1
 node ./scripts/generate-icns.js
 ```
 
-These commands redraw the vector-style “R” artwork across multiple sizes, rebuild the multiresolution `.ico`, and compose a modern `.icns` container without external tooling.
+These commands resize the master PNG across multiple sizes, rebuild the multiresolution `.ico`, and compose a modern `.icns` container without external tooling.
 
 ## Tech Stack
 

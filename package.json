@@ -55,6 +55,9 @@
     "files": [
       "dist-electron/**/*",
       "dist/**/*",
+      "build/icon.png",
+      "build/icon.ico",
+      "build/icon.icns",
       "package.json"
     ],
     "extraMetadata": {

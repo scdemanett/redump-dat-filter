@@ -8,11 +8,51 @@ import type {
   RedumpSystem,
   RedumpSystemListSource
 } from '../shared';
+import appIconUrl from '../../build/icon.svg';
 
 const numberFormatter = new Intl.NumberFormat();
 const preferredDefaultRegions = ['USA', 'World'];
+const SELECTED_REGIONS_STORAGE_KEY = 'selectedRegions';
+type ThemeMode = 'dark' | 'light';
+
+function readStoredTheme(): ThemeMode {
+  try {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+  } catch {
+    // ignore storage access issues
+  }
+  return 'dark';
+}
+
+function readStoredRegions(): string[] | null {
+  try {
+    const raw = localStorage.getItem(SELECTED_REGIONS_STORAGE_KEY);
+    if (raw === null) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredRegions(regions: string[]): void {
+  try {
+    localStorage.setItem(SELECTED_REGIONS_STORAGE_KEY, JSON.stringify(regions));
+  } catch {
+    // ignore storage access issues
+  }
+}
 
 function App() {
+  const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
   const [loadedDat, setLoadedDat] = useState<LoadedDatPayload | null>(null);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [previewHeader, setPreviewHeader] = useState<DatHeader | null>(null);
@@ -43,8 +83,7 @@ function App() {
 
   const hydrateLoadedDat = useCallback((data: LoadedDatPayload, message?: string) => {
     setLoadedDat(data);
-    const defaults = pickDefaultRegions(data.regions);
-    setSelectedRegions(defaults);
+    setSelectedRegions(resolveRegionSelection(data.regions));
     setPreviewHeader(null);
     setPreviewSummary(null);
     setPreviewFilename(null);
@@ -68,6 +107,22 @@ function App() {
     },
     []
   );
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // ignore storage access issues
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (!loadedDat) {
+      return;
+    }
+    writeStoredRegions(selectedRegions);
+  }, [loadedDat, selectedRegions]);
 
   useEffect(() => {
     window.datAPI
@@ -482,11 +537,50 @@ function App() {
     >
       <div className="app-container">
         <header className="app-header">
-          <div>
-            <h1>Redump DAT Filter</h1>
-            <p>Filter Redump DAT collections by region and export a trimmed datafile.</p>
+          <div className="app-header__brand">
+            <img className="app-header__logo" src={appIconUrl} alt="" width={96} height={96} />
+            <div>
+              <h1>Redump DAT Filter</h1>
+              <p>Filter Redump DAT collections by region and export a trimmed datafile.</p>
+            </div>
           </div>
           <div className="header-actions">
+            <div className="theme-toggle" role="group" aria-label="Color theme">
+              <button
+                type="button"
+                className={`theme-toggle__option ${theme === 'light' ? 'is-active' : ''}`}
+                onClick={() => setTheme('light')}
+                aria-pressed={theme === 'light'}
+                title="Light theme"
+              >
+                <svg className="theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" fill="currentColor" />
+                  <path
+                    d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>Light</span>
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle__option ${theme === 'dark' ? 'is-active' : ''}`}
+                onClick={() => setTheme('dark')}
+                aria-pressed={theme === 'dark'}
+                title="Dark theme"
+              >
+                <svg className="theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 7 7 0 1 0 20.5 14.2Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span>Dark</span>
+              </button>
+            </div>
             <button type="button" className="button" onClick={handleOpenDat} disabled={opening || downloading}>
               {opening ? 'Opening…' : 'Open DAT'}
             </button>
@@ -805,9 +899,21 @@ function extractMessage(error: unknown): string {
   return String(error);
 }
 
-function pickDefaultRegions(regions: string[]): string[] {
-  const defaults = preferredDefaultRegions.filter((region) => regions.includes(region));
-  return defaults.length > 0 ? defaults : [];
+function resolveRegionSelection(availableRegions: string[]): string[] {
+  const available = new Set(availableRegions);
+  const stored = readStoredRegions();
+
+  if (stored !== null) {
+    if (stored.length === 0) {
+      return [];
+    }
+    const matched = stored.filter((region) => available.has(region));
+    if (matched.length > 0) {
+      return matched;
+    }
+  }
+
+  return preferredDefaultRegions.filter((region) => available.has(region));
 }
 
 function hasFilePayload(dataTransfer: DataTransfer | null): boolean {

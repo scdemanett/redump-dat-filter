@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from 'electron';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -30,6 +31,12 @@ import {
   maybeRefreshSystemListInBackground,
   refreshSystemList
 } from './redumpDownload';
+import {
+  getDefaultWindowOptions,
+  loadWindowState,
+  shouldStartMaximized,
+  trackWindowState
+} from './windowState';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const DAT_FILE_FILTER = {
@@ -45,12 +52,34 @@ interface LoadedDatState {
 
 let loadedDat: LoadedDatState | null = null;
 
+function resolveAppIconPath(): string | undefined {
+  const buildDir = path.join(__dirname, '..', 'build');
+  const candidates =
+    process.platform === 'win32'
+      ? ['icon.ico', 'icon.png']
+      : process.platform === 'darwin'
+        ? ['icon.icns', 'icon.png']
+        : ['icon.png'];
+
+  for (const name of candidates) {
+    const candidate = path.join(buildDir, name);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 const createMainWindow = async () => {
+  const savedState = loadWindowState();
+  const windowOptions = getDefaultWindowOptions(savedState);
+  const startMaximized = shouldStartMaximized(savedState);
+  const icon = resolveAppIconPath();
+
   const browserWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 960,
-    minHeight: 600,
+    ...windowOptions,
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -60,7 +89,12 @@ const createMainWindow = async () => {
     show: false
   });
 
+  trackWindowState(browserWindow);
+
   browserWindow.once('ready-to-show', () => {
+    if (startMaximized) {
+      browserWindow.maximize();
+    }
     browserWindow.show();
     if (isDev) {
       try {
@@ -80,6 +114,12 @@ const createMainWindow = async () => {
 };
 
 app.whenReady().then(() => {
+  // Drop Electron's default File/Edit/View/Window menu on Windows/Linux.
+  // Keep the macOS app menu (platform convention).
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+  }
+
   registerIpcHandlers();
   maybeRefreshSystemListInBackground();
 

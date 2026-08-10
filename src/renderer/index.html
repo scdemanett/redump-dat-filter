@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Redump DAT Filter</title>
+    <script>
+      (function () {
+        var t = localStorage.getItem('theme');
+        document.documentElement.setAttribute(
+          'data-theme',
+          t === 'light' || t === 'dark' ? t : 'dark'
+        );
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
