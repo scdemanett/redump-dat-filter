@@ -81,6 +81,7 @@ function App() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appUpdateStatus, setAppUpdateStatus] = useState<AppUpdateStatus>({ state: 'idle' });
   const [appUpdateBusy, setAppUpdateBusy] = useState(false);
+  const [appUpdateBannerDismissed, setAppUpdateBannerDismissed] = useState(false);
 
   const previewRequestId = useRef(0);
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
@@ -213,6 +214,9 @@ function App() {
     const unsubscribe = window.datAPI.onAppUpdateStatus((status) => {
       if (!cancelled) {
         setAppUpdateStatus(status);
+        if (status.state === 'available' || status.state === 'downloaded') {
+          setAppUpdateBannerDismissed(false);
+        }
       }
     });
 
@@ -222,7 +226,12 @@ function App() {
     };
   }, []);
 
+  const dismissAppUpdateBanner = useCallback(() => {
+    setAppUpdateBannerDismissed(true);
+  }, []);
+
   const handleCheckAppUpdates = useCallback(async () => {
+    setAppUpdateBannerDismissed(false);
     setAppUpdateBusy(true);
     try {
       const status = await window.datAPI.checkAppUpdates(true);
@@ -632,6 +641,15 @@ function App() {
     appUpdateStatus.state === 'unavailable' ||
     appUpdateStatus.state === 'error';
 
+  const showAppUpdateBanner =
+    !appUpdateBannerDismissed &&
+    appUpdateMessage &&
+    appUpdateStatus.state !== 'idle' &&
+    appUpdateStatus.state !== 'disabled';
+
+  const canDismissAppUpdateBanner =
+    appUpdateStatus.state !== 'checking' && appUpdateStatus.state !== 'downloading';
+
   return (
     <main
       className={`app-shell ${isDragActive ? 'drag-active' : ''}`}
@@ -723,7 +741,7 @@ function App() {
           </div>
         )}
 
-        {appUpdateMessage && appUpdateStatus.state !== 'idle' && appUpdateStatus.state !== 'disabled' && (
+        {showAppUpdateBanner && (
           <div
             className={`alert app-update ${appUpdateStatus.state === 'error' ? 'error' : 'info'}`}
             role={appUpdateStatus.state === 'error' ? 'alert' : 'status'}
@@ -731,6 +749,11 @@ function App() {
             <div className="app-update__message">{appUpdateMessage}</div>
             {showAppUpdateActions && (
               <div className="app-update__actions">
+                {canDismissAppUpdateBanner && (
+                  <button type="button" className="button ghost" onClick={dismissAppUpdateBanner}>
+                    Dismiss
+                  </button>
+                )}
                 {(appUpdateStatus.state === 'available' ||
                   appUpdateStatus.state === 'unavailable' ||
                   appUpdateStatus.state === 'error') && (
