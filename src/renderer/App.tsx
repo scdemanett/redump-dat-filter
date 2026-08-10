@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 
 import type {
+  AppUpdateStatus,
   DatHeader,
   FilterSummary,
   LoadedDatPayload,
@@ -76,6 +77,10 @@ function App() {
   const [selectedSlug, setSelectedSlug] = useState('');
   const [systemPickerOpen, setSystemPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [appUpdateStatus, setAppUpdateStatus] = useState<AppUpdateStatus>({ state: 'idle' });
+  const [appUpdateBusy, setAppUpdateBusy] = useState(false);
 
   const previewRequestId = useRef(0);
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +190,78 @@ function App() {
       cancelled = true;
     };
   }, [applySystemsResponse]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAppUpdateState() {
+      try {
+        const [version, status] = await Promise.all([
+          window.datAPI.getAppVersion(),
+          window.datAPI.getAppUpdateStatus()
+        ]);
+        if (!cancelled) {
+          setAppVersion(version);
+          setAppUpdateStatus(status);
+        }
+      } catch {
+        // ignore update bootstrap errors
+      }
+    }
+
+    void loadAppUpdateState();
+    const unsubscribe = window.datAPI.onAppUpdateStatus((status) => {
+      if (!cancelled) {
+        setAppUpdateStatus(status);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleCheckAppUpdates = useCallback(async () => {
+    setAppUpdateBusy(true);
+    try {
+      const status = await window.datAPI.checkAppUpdates(true);
+      setAppUpdateStatus(status);
+    } catch (err) {
+      setAppUpdateStatus({
+        state: 'error',
+        message: extractMessage(err)
+      });
+    } finally {
+      setAppUpdateBusy(false);
+    }
+  }, []);
+
+  const handleDownloadAppUpdate = useCallback(async () => {
+    setAppUpdateBusy(true);
+    try {
+      const status = await window.datAPI.downloadAppUpdate();
+      setAppUpdateStatus(status);
+    } catch (err) {
+      setAppUpdateStatus({
+        state: 'error',
+        message: extractMessage(err)
+      });
+    } finally {
+      setAppUpdateBusy(false);
+    }
+  }, []);
+
+  const handleInstallAppUpdate = useCallback(async () => {
+    try {
+      await window.datAPI.installAppUpdate();
+    } catch (err) {
+      setAppUpdateStatus({
+        state: 'error',
+        message: extractMessage(err)
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const preventDefault = (event: DragEvent) => {
@@ -527,6 +604,34 @@ function App() {
       : 'Load'
     : 'Download & load';
 
+  const appUpdateMessage = useMemo(() => {
+    switch (appUpdateStatus.state) {
+      case 'checking':
+        return 'Checking for app updates…';
+      case 'unavailable':
+        return `You're on the latest app version (v${appUpdateStatus.currentVersion}).`;
+      case 'available':
+        return `App update available: v${appUpdateStatus.latestVersion} (current v${appUpdateStatus.currentVersion}).`;
+      case 'downloading':
+        return `Downloading app update… ${Math.round(appUpdateStatus.percent)}%`;
+      case 'downloaded':
+        return `App update v${appUpdateStatus.latestVersion} downloaded. Restart to install.`;
+      case 'error':
+        return `App update check failed: ${appUpdateStatus.message}`;
+      case 'disabled':
+        return appUpdateStatus.reason;
+      default:
+        return null;
+    }
+  }, [appUpdateStatus]);
+
+  const showAppUpdateActions =
+    appUpdateStatus.state === 'available' ||
+    appUpdateStatus.state === 'downloaded' ||
+    appUpdateStatus.state === 'idle' ||
+    appUpdateStatus.state === 'unavailable' ||
+    appUpdateStatus.state === 'error';
+
   return (
     <main
       className={`app-shell ${isDragActive ? 'drag-active' : ''}`}
@@ -542,6 +647,22 @@ function App() {
             <div>
               <h1>Redump DAT Filter</h1>
               <p>Filter Redump DAT collections by region and export a trimmed datafile.</p>
+              {appVersion && (
+                <p className="app-version">
+                  App version v{appVersion}
+                  {' · '}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={handleCheckAppUpdates}
+                    disabled={appUpdateBusy || appUpdateStatus.state === 'checking'}
+                  >
+                    {appUpdateBusy || appUpdateStatus.state === 'checking'
+                      ? 'Checking for updates…'
+                      : 'Check for app updates'}
+                  </button>
+                </p>
+              )}
             </div>
           </div>
           <div className="header-actions">
@@ -599,6 +720,46 @@ function App() {
         {info && !error && (
           <div className="alert success" role="status">
             {info}
+          </div>
+        )}
+
+        {appUpdateMessage && appUpdateStatus.state !== 'idle' && appUpdateStatus.state !== 'disabled' && (
+          <div
+            className={`alert app-update ${appUpdateStatus.state === 'error' ? 'error' : 'info'}`}
+            role={appUpdateStatus.state === 'error' ? 'alert' : 'status'}
+          >
+            <div className="app-update__message">{appUpdateMessage}</div>
+            {showAppUpdateActions && (
+              <div className="app-update__actions">
+                {(appUpdateStatus.state === 'available' ||
+                  appUpdateStatus.state === 'unavailable' ||
+                  appUpdateStatus.state === 'error') && (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={handleCheckAppUpdates}
+                    disabled={appUpdateBusy}
+                  >
+                    Check again
+                  </button>
+                )}
+                {appUpdateStatus.state === 'available' && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={handleDownloadAppUpdate}
+                    disabled={appUpdateBusy}
+                  >
+                    {appUpdateStatus.autoInstallSupported ? 'Download update' : 'View release'}
+                  </button>
+                )}
+                {appUpdateStatus.state === 'downloaded' && appUpdateStatus.autoInstallSupported && (
+                  <button type="button" className="button" onClick={handleInstallAppUpdate}>
+                    Restart and install
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

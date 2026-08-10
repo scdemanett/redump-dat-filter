@@ -10,6 +10,12 @@ export default defineConfig((options) => ({
   splitting: false,
   platform: 'node',
   target: 'node20',
-  external: ['electron', 'electron/main', 'electron/common', 'electron/renderer']
+  external: [
+    'electron',
+    'electron/main',
+    'electron/common',
+    'electron/renderer',
+    'electron-updater'
+  ]
 }));
 

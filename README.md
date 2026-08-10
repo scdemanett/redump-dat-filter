@@ -66,7 +66,7 @@ If no entries match a selection the app warns before attempting to write a file.
 | ------------------- | ---------------------------------------------------------------------------- |
 | `npm run dev`       | Start Vite, watch main/preload via `tsup`, and launch Electron with reloads. |
 | `npm run build`     | Build renderer assets and compile Electron entry points.                     |
-| `npm run package`   | Create distributable installers using `electron-builder`.                    |
+| `npm run package`   | Create distributable installers and portable zips using `electron-builder`.  |
 | `npm run clean`     | Remove `dist/` and `dist-electron/` outputs.                                 |
 | `npm run typecheck` | Run TypeScript checks without emitting files.                                |
 
@@ -74,11 +74,33 @@ If no entries match a selection the app warns before attempting to write a file.
 
 `npm run package` invokes `electron-builder` with targets for:
 
-- **Windows**: NSIS installer (`.exe`)
-- **macOS**: DMG image
-- **Linux**: AppImage
+- **Windows**: NSIS installer (`.exe`) and portable zip
+- **macOS**: DMG image and portable zip (x64 and arm64)
+- **Linux**: AppImage and portable zip
 
-Artifacts are written to the `release/` directory. Update `build/` with platform-specific icons (`icon.ico`, `icon.icns`, `icon.png`) before distributing production builds.
+Artifacts are written to the `release/` directory with these names:
+
+- Installers: `redump-dat-filter-setup-{VERSION}-{PLATFORM}.{ext}` (e.g. `redump-dat-filter-setup-0.3.0-win-x64.exe`)
+- Portable builds: `redump-dat-filter-unpacked-{VERSION}-{PLATFORM}.zip` (e.g. `redump-dat-filter-unpacked-0.3.0-mac-arm64.zip`)
+
+`{PLATFORM}` is `{os}-{arch}` such as `win-x64`, `mac-arm64`, or `linux-x64`. Portable zips contain the unpacked app — extract and run the executable without installing.
+
+Update `build/` with platform-specific icons (`icon.ico`, `icon.icns`, `icon.png`) before distributing production builds.
+
+### GitHub Releases
+
+CI builds all platforms when you push a version tag (`vX.Y.Z`) or run the **Release** workflow manually from the Actions tab.
+
+- **Tag push** (`v*`) — builds installers and portable zips, then publishes them to a GitHub Release.
+- **Manual run** — builds and uploads workflow artifacts only (no Release).
+
+macOS builds are unsigned. On first launch you may need to right-click the app and choose **Open**, or allow it in **System Settings → Privacy & Security**.
+
+### App updates
+
+Packaged builds check GitHub Releases for new app versions on startup. Installed builds (NSIS, DMG, AppImage) can download and install updates in-app. Portable zip builds are notified when a newer version exists and can open the release page to download manually.
+
+Dev builds (`npm run dev`) do not check for app updates.
 
 ## Icons
 

@@ -37,6 +37,16 @@ import {
   shouldStartMaximized,
   trackWindowState
 } from './windowState';
+import {
+  APP_UPDATE_CHANNELS,
+  checkForAppUpdates,
+  downloadAppUpdate,
+  getAppVersion,
+  getLastAppUpdateStatus,
+  initAppUpdater,
+  installAppUpdate,
+  registerAppUpdateStatusSender
+} from './appUpdater';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const DAT_FILE_FILTER = {
@@ -51,6 +61,7 @@ interface LoadedDatState {
 }
 
 let loadedDat: LoadedDatState | null = null;
+let mainWindow: BrowserWindow | null = null;
 
 function resolveAppIconPath(): string | undefined {
   const buildDir = path.join(__dirname, '..', 'build');
@@ -90,6 +101,7 @@ const createMainWindow = async () => {
   });
 
   trackWindowState(browserWindow);
+  mainWindow = browserWindow;
 
   browserWindow.once('ready-to-show', () => {
     if (startMaximized) {
@@ -121,6 +133,10 @@ app.whenReady().then(() => {
   }
 
   registerIpcHandlers();
+  registerAppUpdateStatusSender((status) => {
+    mainWindow?.webContents.send(APP_UPDATE_CHANNELS.status, status);
+  });
+  initAppUpdater();
   maybeRefreshSystemListInBackground();
 
   createMainWindow().catch((error) => {
@@ -156,6 +172,13 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.refreshSystems, handleRefreshSystems);
   ipcMain.handle(IPC_CHANNELS.checkUpdates, handleCheckUpdates);
   ipcMain.handle(IPC_CHANNELS.downloadSystem, handleDownloadSystem);
+  ipcMain.handle(APP_UPDATE_CHANNELS.getVersion, () => getAppVersion());
+  ipcMain.handle(APP_UPDATE_CHANNELS.checkForUpdates, (_event, manual = true) =>
+    checkForAppUpdates(Boolean(manual))
+  );
+  ipcMain.handle(APP_UPDATE_CHANNELS.downloadUpdate, () => downloadAppUpdate());
+  ipcMain.handle(APP_UPDATE_CHANNELS.installUpdate, () => installAppUpdate());
+  ipcMain.handle(APP_UPDATE_CHANNELS.getStatus, () => getLastAppUpdateStatus());
 }
 
 function unregisterIpcHandlers() {
@@ -169,6 +192,11 @@ function unregisterIpcHandlers() {
   ipcMain.removeHandler(IPC_CHANNELS.refreshSystems);
   ipcMain.removeHandler(IPC_CHANNELS.checkUpdates);
   ipcMain.removeHandler(IPC_CHANNELS.downloadSystem);
+  ipcMain.removeHandler(APP_UPDATE_CHANNELS.getVersion);
+  ipcMain.removeHandler(APP_UPDATE_CHANNELS.checkForUpdates);
+  ipcMain.removeHandler(APP_UPDATE_CHANNELS.downloadUpdate);
+  ipcMain.removeHandler(APP_UPDATE_CHANNELS.installUpdate);
+  ipcMain.removeHandler(APP_UPDATE_CHANNELS.getStatus);
 }
 
 async function handleOpenDat(event: IpcMainInvokeEvent): Promise<OpenDatResponse> {

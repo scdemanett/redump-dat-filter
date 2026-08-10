@@ -12,6 +12,32 @@ export const IPC_CHANNELS = {
   downloadSystem: 'dat:download-system'
 } as const;
 
+export const APP_UPDATE_CHANNELS = {
+  getVersion: 'app:get-version',
+  getStatus: 'app:get-update-status',
+  checkForUpdates: 'app:check-for-updates',
+  downloadUpdate: 'app:download-update',
+  installUpdate: 'app:install-update',
+  status: 'app:update-status'
+} as const;
+
+export type AppUpdateStatus =
+  | { state: 'idle'; currentVersion?: string }
+  | { state: 'disabled'; reason: string }
+  | { state: 'checking' }
+  | { state: 'unavailable'; currentVersion: string }
+  | {
+      state: 'available';
+      currentVersion: string;
+      latestVersion: string;
+      releaseNotes?: string;
+      releaseUrl?: string;
+      autoInstallSupported: boolean;
+    }
+  | { state: 'downloading'; percent: number }
+  | { state: 'downloaded'; latestVersion: string; autoInstallSupported: boolean }
+  | { state: 'error'; message: string };
+
 export interface LoadedDatPayload {
   filePath: string;
   originalFilename: string;

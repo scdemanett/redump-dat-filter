@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import {
   IPC_CHANNELS,
+  APP_UPDATE_CHANNELS,
+  type AppUpdateStatus,
   type CheckUpdatesResponse,
   type CurrentDatResponse,
   type DownloadSystemResponse,
@@ -46,7 +48,22 @@ const api = {
     ipcRenderer.invoke(IPC_CHANNELS.downloadSystem, {
       slug,
       force: Boolean(force)
-    })
+    }),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.getVersion),
+  getAppUpdateStatus: (): Promise<AppUpdateStatus> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.getStatus),
+  checkAppUpdates: (manual = true): Promise<AppUpdateStatus> =>
+    ipcRenderer.invoke(APP_UPDATE_CHANNELS.checkForUpdates, manual),
+  downloadAppUpdate: (): Promise<AppUpdateStatus> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.downloadUpdate),
+  installAppUpdate: (): Promise<AppUpdateStatus> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.installUpdate),
+  onAppUpdateStatus: (callback: (status: AppUpdateStatus) => void): (() => void) => {
+    const listener = (_event: unknown, status: AppUpdateStatus) => {
+      callback(status);
+    };
+    ipcRenderer.on(APP_UPDATE_CHANNELS.status, listener);
+    return () => {
+      ipcRenderer.removeListener(APP_UPDATE_CHANNELS.status, listener);
+    };
+  }
 };
 
 contextBridge.exposeInMainWorld('datAPI', api);
