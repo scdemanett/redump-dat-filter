@@ -93,6 +93,7 @@ CI builds all platforms when you push a version tag (`vX.Y.Z`) or run the **Rele
 
 - **Tag push** (`v*`) — builds installers and portable zips, then publishes them to a GitHub Release.
 - **Manual run** — builds and uploads workflow artifacts only (no Release).
+- **Publish only** — in the Actions tab, run **Release** with `release_only: true`, the target tag (e.g. `v0.3.2`), and the workflow run ID from a completed build that uploaded artifacts. Skips rebuilding; useful when the build succeeded but publishing failed.
 
 macOS builds are unsigned. On first launch you may need to right-click the app and choose **Open**, or allow it in **System Settings → Privacy & Security**.
 

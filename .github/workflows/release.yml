@@ -5,12 +5,26 @@ on:
     tags:
       - v*
   workflow_dispatch:
+    inputs:
+      release_only:
+        description: Skip builds and publish artifacts from an existing workflow run
+        type: boolean
+        default: false
+      artifact_run_id:
+        description: Workflow run ID with build artifacts (required when release_only is true)
+        type: string
+        required: false
+      tag:
+        description: Release tag to publish (required when release_only is true, e.g. v0.3.2)
+        type: string
+        required: false
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +78,12 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && inputs.release_only == true)
+      ) &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -72,8 +91,26 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_only == true && inputs.tag || github.ref }}
+
+      - name: Download artifacts from prior workflow run
+        if: github.event_name == 'workflow_dispatch' && inputs.release_only == true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          run_id="${{ inputs.artifact_run_id }}"
+          if [ -z "$run_id" ]; then
+            echo "artifact_run_id is required when release_only is true."
+            exit 1
+          fi
+
+          mkdir -p release-artifacts
+          gh run download "$run_id" --dir release-artifacts --pattern "release-*"
 
       - name: Download artifacts
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
         uses: actions/download-artifact@v8
         with:
           path: release-artifacts
@@ -88,7 +125,22 @@ jobs:
         run: |
           set -euo pipefail
 
-          tag="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.release_only }}" = "true" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          if [ -z "$tag" ]; then
+            echo "Release tag is required."
+            exit 1
+          fi
+
+          if [[ ! "$tag" =~ ^v ]]; then
+            echo "Release tag must start with v (got: $tag)."
+            exit 1
+          fi
+
           prerelease=false
           if [[ "$tag" == *-* ]]; then
             prerelease=true
@@ -100,7 +152,7 @@ jobs:
             exit 1
           fi
 
-          printf 'Uploading %s artifact(s):\n' "${#files[@]}"
+          printf 'Uploading %s artifact(s) for %s:\n' "${#files[@]}" "$tag"
           printf ' - %s\n' "${files[@]}"
 
           if gh release view "$tag" >/dev/null 2>&1; then
