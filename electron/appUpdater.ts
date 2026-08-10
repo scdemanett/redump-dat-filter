@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { APP_UPDATE_CHANNELS, type AppUpdateStatus } from '../src/shared';
@@ -22,14 +22,26 @@ function setStatus(status: AppUpdateStatus): void {
   sendStatus(status);
 }
 
+function hasWindowsInstallerUninstaller(): boolean {
+  try {
+    const installDir = path.dirname(process.execPath);
+    return readdirSync(installDir).some((file) => /^Uninstall .+\.exe$/i.test(file));
+  } catch {
+    return false;
+  }
+}
+
 function supportsAutoInstall(): boolean {
   if (!app.isPackaged || isDev || process.env.PORTABLE_EXECUTABLE_DIR) {
     return false;
   }
 
+  if (!existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
+    return false;
+  }
+
   if (process.platform === 'win32') {
-    const installDir = path.dirname(process.execPath);
-    return existsSync(path.join(installDir, `Uninstall ${app.getName()}.exe`));
+    return hasWindowsInstallerUninstaller();
   }
 
   if (process.platform === 'linux') {
