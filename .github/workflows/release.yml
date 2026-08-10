@@ -161,7 +161,14 @@ jobs:
             gh release create "$tag" \
               --title "$tag" \
               --generate-notes \
+              --draft=false \
               --prerelease="$prerelease"
           fi
 
           gh release upload "$tag" "${files[@]}" --clobber
+
+          if [ "$prerelease" = true ]; then
+            gh release edit "$tag" --draft=false --prerelease
+          else
+            gh release edit "$tag" --draft=false --latest
+          fi
