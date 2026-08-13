@@ -23,6 +23,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -85,36 +86,63 @@ export function platformLabel(triple) {
   throw new Error(`Unsupported target triple: ${triple}`);
 }
 
-/** @param {string} triple */
-export function releaseDirForTriple(triple, host) {
+/** @param {string} triple @param {string} host @param {boolean} explicitTarget */
+export function releaseDirCandidates(triple, host, explicitTarget) {
   const base = join(workspace, 'src-tauri', 'target');
-  if (!triple || triple === host) {
-    return join(base, 'release');
+  /** @type {string[]} */
+  const dirs = [];
+  if (explicitTarget && triple) {
+    // `tauri build --target <triple>` always writes under target/<triple>/release,
+    // even when that triple matches the host (CI mac arm64 case).
+    dirs.push(join(base, triple, 'release'));
   }
-  return join(base, triple, 'release');
+  dirs.push(join(base, 'release'));
+  if (triple && triple !== host) {
+    dirs.push(join(base, triple, 'release'));
+  } else if (host) {
+    dirs.push(join(base, host, 'release'));
+  }
+  return [...new Set(dirs)];
 }
 
 /**
- * @param {string} releaseDir
+ * @param {string[]} releaseDirs
  * @param {string} triple
  */
-export function resolvePortablePayload(releaseDir, triple) {
+export function resolvePortablePayload(releaseDirs, triple) {
+  /** @type {string[]} */
+  const tried = [];
+
   if (triple.includes('apple-darwin')) {
-    const macosDir = join(releaseDir, 'bundle', 'macos');
-    const appName = `${PRODUCT_NAME}.app`;
-    const appPath = join(macosDir, appName);
-    if (!existsSync(appPath)) {
-      throw new Error(`Missing macOS app bundle at ${appPath}`);
+    for (const releaseDir of releaseDirs) {
+      const macosDir = join(releaseDir, 'bundle', 'macos');
+      const preferred = join(macosDir, `${PRODUCT_NAME}.app`);
+      tried.push(preferred);
+      if (existsSync(preferred)) {
+        return { kind: 'app', source: preferred, destName: `${PRODUCT_NAME}.app` };
+      }
+      if (existsSync(macosDir)) {
+        const apps = readdirSync(macosDir).filter((name) => name.endsWith('.app'));
+        if (apps[0]) {
+          const appPath = join(macosDir, apps[0]);
+          tried.push(appPath);
+          return { kind: 'app', source: appPath, destName: apps[0] };
+        }
+        tried.push(`${macosDir}/*`);
+      }
     }
-    return { kind: 'app', source: appPath, destName: appName };
+    throw new Error(`Missing macOS app bundle. Looked in:\n${tried.map((p) => ` - ${p}`).join('\n')}`);
   }
 
   const exeName = triple.includes('windows') ? `${BINARY_NAME}.exe` : BINARY_NAME;
-  const exePath = join(releaseDir, exeName);
-  if (!existsSync(exePath)) {
-    throw new Error(`Missing binary at ${exePath}`);
+  for (const releaseDir of releaseDirs) {
+    const exePath = join(releaseDir, exeName);
+    tried.push(exePath);
+    if (existsSync(exePath)) {
+      return { kind: 'bin', source: exePath, destName: exeName };
+    }
   }
-  return { kind: 'bin', source: exePath, destName: exeName };
+  throw new Error(`Missing binary. Looked in:\n${tried.map((p) => ` - ${p}`).join('\n')}`);
 }
 
 /**
@@ -154,11 +182,12 @@ export function createZip(payload, zipPath, triple) {
 function main() {
   const args = parseArgs(process.argv);
   const host = hostTriple();
+  const explicitTarget = Boolean(args.target);
   const triple = args.target || host;
   const version = args.version || readVersion(join(workspace, 'src-tauri', 'Cargo.toml'));
   const { os, arch } = platformLabel(triple);
-  const releaseDir = releaseDirForTriple(triple, host);
-  const payload = resolvePortablePayload(releaseDir, triple);
+  const releaseDirs = releaseDirCandidates(triple, host, explicitTarget);
+  const payload = resolvePortablePayload(releaseDirs, triple);
 
   mkdirSync(args.outDir, { recursive: true });
   const zipName = `redump-dat-filter-unpacked-${version}-${os}-${arch}.zip`;
@@ -168,6 +197,7 @@ function main() {
   console.log(`Created ${zipPath}`);
   console.log(`  source: ${payload.source}`);
   console.log(`  triple: ${triple}`);
+  console.log(`  searched: ${releaseDirs.join(', ')}`);
 }
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
