@@ -827,7 +827,7 @@ function App() {
                 onClick={handleCheckUpdates}
                 disabled={updatesChecking || systemsLoading}
               >
-                {updatesChecking ? 'Checking…' : 'Check updates'}
+                {updatesChecking ? 'Checking…' : 'Check Updates'}
               </button>
             </div>
           </header>
