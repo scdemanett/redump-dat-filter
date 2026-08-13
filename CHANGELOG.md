@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.0] - 2026-08-13
+
+First stable Tauri 2 release. Replaces the Electron 1.x desktop shell.
+
+### Changed
+
+- Desktop backend is now Rust/Tauri 2 (DAT parse/filter, Redump download/cache, dialogs, window state, signed updates).
+- Packaging uses `tauri build` / GitHub Actions instead of `electron-builder`.
+- Installed builds update in-app via signed `latest.json`; portable zips open the GitHub release page.
+- NSIS finish page leaves **Create desktop shortcut** unchecked by default.
+
+### Added
+
+- Drag-and-drop DAT loading via Tauri `onDragDropEvent`.
+- One-time migration of Electron `userData/cache` into the Tauri app data cache when empty.
+- Portable zips: `redump-dat-filter-unpacked-{VERSION}-{OS}-{ARCH}.zip`.
+
+### Fixed
+
+- App update status IPC uses camelCase fields (version labels and Download Update / View Release).
+- Portable zip packaging for explicit macOS `--target` builds.
+- Linux unused-variable warnings in install/portable detection.
+
+### Breaking
+
+- Electron 1.x installers and `electron-updater` (`latest*.yml` / blockmaps) are not used. Install 2.0.0 from GitHub Releases; later updates use the Tauri updater.
+- Cache path identifier is now `com.redump.filter`; Electron caches are copied on first launch when possible.
+
 ## [1.9.1] - 2026-08-13
 
 Updater E2E follow-up on the 1.9.0 Tauri baseline.
@@ -85,6 +113,9 @@ First stable release of Redump DAT Filter.
 - Add live Redump DAT download with cached system picker.
 - Polish desktop shell with Redump theming and window state persistence.
 
+[2.0.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.0
+[1.9.1]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v1.9.1
+[1.9.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v1.9.0
 [1.0.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v1.0.0
 [0.3.4]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v0.3.4
 [0.3.3]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v0.3.3

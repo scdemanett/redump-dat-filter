@@ -67,14 +67,13 @@ fn supports_auto_install(_app: &AppHandle) -> bool {
     return false;
   }
 
-  let Ok(exe) = std::env::current_exe() else {
-    return false;
-  };
-
   #[cfg(target_os = "windows")]
   {
     // Tauri/Electron NSIS installs ship an uninstaller next to the binary.
     // Portable zips are just the exe, so they fall back to the release page.
+    let Ok(exe) = std::env::current_exe() else {
+      return false;
+    };
     let Some(dir) = exe.parent() else {
       return false;
     };
@@ -95,6 +94,9 @@ fn supports_auto_install(_app: &AppHandle) -> bool {
 
   #[cfg(target_os = "macos")]
   {
+    let Ok(exe) = std::env::current_exe() else {
+      return false;
+    };
     exe
       .to_string_lossy()
       .contains(&format!("{}Applications{}", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR))
@@ -102,7 +104,6 @@ fn supports_auto_install(_app: &AppHandle) -> bool {
 
   #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
   {
-    let _ = dir;
     false
   }
 }

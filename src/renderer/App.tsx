@@ -629,7 +629,7 @@ function App() {
     ? selectedSystem.updateAvailable
       ? 'Download update'
       : 'Load'
-    : 'Download & load';
+    : 'Download & Load';
 
   const appUpdateMessage = useMemo(() => {
     switch (appUpdateStatus.state) {
@@ -775,7 +775,7 @@ function App() {
                     onClick={handleCheckAppUpdates}
                     disabled={appUpdateBusy}
                   >
-                    Check again
+                    Check Again
                   </button>
                 )}
                 {appUpdateStatus.state === 'available' && (
@@ -785,7 +785,7 @@ function App() {
                     onClick={handleDownloadAppUpdate}
                     disabled={appUpdateBusy}
                   >
-                    {appUpdateStatus.autoInstallSupported ? 'Download update' : 'View release'}
+                    {appUpdateStatus.autoInstallSupported ? 'Download Update' : 'View Release'}
                   </button>
                 )}
                 {appUpdateStatus.state === 'downloaded' && appUpdateStatus.autoInstallSupported && (
@@ -819,7 +819,7 @@ function App() {
                 onClick={handleRefreshSystems}
                 disabled={systemsRefreshing || systemsLoading}
               >
-                {systemsRefreshing ? 'Refreshing…' : 'Refresh systems'}
+                {systemsRefreshing ? 'Refreshing…' : 'Refresh Systems'}
               </button>
               <button
                 type="button"
@@ -934,7 +934,7 @@ function App() {
                 disabled={!selectedSlug || downloading || opening}
                 title="Force re-download from Redump"
               >
-                Force refresh
+                Force Refresh
               </button>
             </div>
           </div>
