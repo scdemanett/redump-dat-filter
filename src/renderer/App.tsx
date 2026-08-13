@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent as ReactDragEvent } from 'react';
+
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 import type {
   AppUpdateStatus,
@@ -10,6 +11,7 @@ import type {
   RedumpSystemListSource
 } from '../shared';
 import appIconUrl from '../../build/icon.svg';
+import { datAPI } from './datApi';
 
 const numberFormatter = new Intl.NumberFormat();
 const preferredDefaultRegions = ['USA', 'World'];
@@ -87,15 +89,30 @@ function App() {
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
   const systemSearchRef = useRef<HTMLInputElement | null>(null);
 
-  const hydrateLoadedDat = useCallback((data: LoadedDatPayload, message?: string) => {
-    setLoadedDat(data);
-    setSelectedRegions(resolveRegionSelection(data.regions));
-    setPreviewHeader(null);
-    setPreviewSummary(null);
-    setPreviewFilename(null);
-    setInfo(message ?? `Loaded ${data.originalFilename}`);
-    setError(null);
-  }, []);
+  const hydrateLoadedDat = useCallback(
+    (
+      data: LoadedDatPayload,
+      message?: string,
+      options?: { systems?: RedumpSystem[]; preferSlug?: string }
+    ) => {
+      setLoadedDat(data);
+      setSelectedRegions(resolveRegionSelection(data.regions));
+      setPreviewHeader(null);
+      setPreviewSummary(null);
+      setPreviewFilename(null);
+      setInfo(message ?? `Loaded ${data.originalFilename}`);
+      setError(null);
+
+      if (options?.preferSlug) {
+        setSelectedSlug(options.preferSlug);
+        return;
+      }
+
+      const matched = matchSystemForDat(data, options?.systems ?? systems);
+      setSelectedSlug(matched?.slug ?? '');
+    },
+    [systems]
+  );
 
   const applySystemsResponse = useCallback(
     (response: {
@@ -124,6 +141,16 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!loadedDat || systems.length === 0 || selectedSlug) {
+      return;
+    }
+    const matched = matchSystemForDat(loadedDat, systems);
+    if (matched) {
+      setSelectedSlug(matched.slug);
+    }
+  }, [loadedDat, systems, selectedSlug]);
+
+  useEffect(() => {
     if (!loadedDat) {
       return;
     }
@@ -131,7 +158,7 @@ function App() {
   }, [loadedDat, selectedRegions]);
 
   useEffect(() => {
-    window.datAPI
+    datAPI
       .getCurrentDat()
       .then((response) => {
         if (response.loaded && response.data) {
@@ -150,7 +177,7 @@ function App() {
     async function loadSystemsAndUpdates() {
       setSystemsLoading(true);
       try {
-        const list = await window.datAPI.listSystems();
+        const list = await datAPI.listSystems();
         if (cancelled) {
           return;
         }
@@ -161,7 +188,7 @@ function App() {
         }
 
         setUpdatesChecking(true);
-        const updates = await window.datAPI.checkUpdates(false);
+        const updates = await datAPI.checkUpdates(false);
         if (cancelled) {
           return;
         }
@@ -198,8 +225,8 @@ function App() {
     async function loadAppUpdateState() {
       try {
         const [version, status] = await Promise.all([
-          window.datAPI.getAppVersion(),
-          window.datAPI.getAppUpdateStatus()
+          datAPI.getAppVersion(),
+          datAPI.getAppUpdateStatus()
         ]);
         if (!cancelled) {
           setAppVersion(version);
@@ -211,7 +238,7 @@ function App() {
     }
 
     void loadAppUpdateState();
-    const unsubscribe = window.datAPI.onAppUpdateStatus((status) => {
+    const unsubscribe = datAPI.onAppUpdateStatus((status) => {
       if (!cancelled) {
         setAppUpdateStatus(status);
         if (status.state === 'available' || status.state === 'downloaded') {
@@ -234,7 +261,7 @@ function App() {
     setAppUpdateBannerDismissed(false);
     setAppUpdateBusy(true);
     try {
-      const status = await window.datAPI.checkAppUpdates(true);
+      const status = await datAPI.checkAppUpdates(true);
       setAppUpdateStatus(status);
     } catch (err) {
       setAppUpdateStatus({
@@ -249,7 +276,7 @@ function App() {
   const handleDownloadAppUpdate = useCallback(async () => {
     setAppUpdateBusy(true);
     try {
-      const status = await window.datAPI.downloadAppUpdate();
+      const status = await datAPI.downloadAppUpdate();
       setAppUpdateStatus(status);
     } catch (err) {
       setAppUpdateStatus({
@@ -263,7 +290,7 @@ function App() {
 
   const handleInstallAppUpdate = useCallback(async () => {
     try {
-      await window.datAPI.installAppUpdate();
+      await datAPI.installAppUpdate();
     } catch (err) {
       setAppUpdateStatus({
         state: 'error',
@@ -273,18 +300,71 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const preventDefault = (event: DragEvent) => {
-      event.preventDefault();
-    };
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
 
-    window.addEventListener('dragover', preventDefault);
-    window.addEventListener('drop', preventDefault);
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (event.payload.type === 'over' || event.payload.type === 'enter') {
+          setIsDragActive(true);
+          return;
+        }
+
+        if (event.payload.type === 'leave') {
+          setIsDragActive(false);
+          return;
+        }
+
+        if (event.payload.type !== 'drop') {
+          return;
+        }
+
+        setIsDragActive(false);
+        const path = event.payload.paths.find((candidate) => /\.(dat|xml)$/i.test(candidate));
+        if (!path) {
+          setError('Only .dat or .xml files can be dropped.');
+          return;
+        }
+
+        setOpening(true);
+        setSaving(false);
+        setInfo(null);
+        setError(null);
+
+        void datAPI
+          .loadDatFromPath(path)
+          .then((response) => {
+            if (!response.success) {
+              setError(response.error ?? 'Failed to load DAT file.');
+              return;
+            }
+            if (response.data) {
+              hydrateLoadedDat(response.data);
+            }
+          })
+          .catch((err) => {
+            setError(`Failed to load DAT file: ${extractMessage(err)}`);
+          })
+          .finally(() => {
+            setOpening(false);
+          });
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch((err) => {
+        console.error('Failed to register drag-drop listener', err);
+      });
 
     return () => {
-      window.removeEventListener('dragover', preventDefault);
-      window.removeEventListener('drop', preventDefault);
+      cancelled = true;
+      unlisten?.();
     };
-  }, []);
+  }, [hydrateLoadedDat]);
 
   useEffect(() => {
     if (!systemPickerOpen) {
@@ -331,7 +411,7 @@ function App() {
     const requestId = ++previewRequestId.current;
     setPreviewLoading(true);
 
-    window.datAPI
+    datAPI
       .previewFilter(selectedRegions)
       .then((response) => {
         if (previewRequestId.current !== requestId) {
@@ -394,7 +474,7 @@ function App() {
     setError(null);
 
     try {
-      const response = await window.datAPI.openDat();
+      const response = await datAPI.openDat();
       if (response.canceled) {
         return;
       }
@@ -418,7 +498,7 @@ function App() {
     setSystemsRefreshing(true);
     setError(null);
     try {
-      const response = await window.datAPI.refreshSystems();
+      const response = await datAPI.refreshSystems();
       if (response.systems) {
         applySystemsResponse(response);
       }
@@ -438,7 +518,7 @@ function App() {
     setUpdatesChecking(true);
     setError(null);
     try {
-      const response = await window.datAPI.checkUpdates(true);
+      const response = await datAPI.checkUpdates(true);
       if (!response.success) {
         setError(response.error ?? 'Failed to check for DAT updates.');
         return;
@@ -468,7 +548,7 @@ function App() {
       setInfo(null);
 
       try {
-        const response = await window.datAPI.downloadSystem(selectedSlug, force);
+        const response = await datAPI.downloadSystem(selectedSlug, force);
         if (!response.success || !response.data) {
           setError(response.error ?? 'Failed to download Redump DAT.');
           return;
@@ -477,9 +557,9 @@ function App() {
         const message = response.fromCache
           ? `Loaded cached ${response.data.originalFilename}`
           : `Downloaded ${response.data.originalFilename}`;
-        hydrateLoadedDat(response.data, message);
+        hydrateLoadedDat(response.data, message, { preferSlug: selectedSlug });
 
-        const refreshed = await window.datAPI.listSystems();
+        const refreshed = await datAPI.listSystems();
         if (refreshed.success) {
           applySystemsResponse(refreshed);
         }
@@ -517,7 +597,7 @@ function App() {
     setError(null);
 
     try {
-      const response = await window.datAPI.saveFiltered(selectedRegions);
+      const response = await datAPI.saveFiltered(selectedRegions);
       if (!response.success) {
         if (response.canceled) {
           setInfo('Save cancelled.');
@@ -536,68 +616,6 @@ function App() {
     }
   }, [loadedDat, selectedRegions]);
 
-  const handleDragEnter = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const hasFiles = hasFilePayload(event.dataTransfer);
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = hasFiles ? 'copy' : 'none';
-    }
-    setIsDragActive(hasFiles);
-  }, []);
-
-  const handleDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const hasFiles = hasFilePayload(event.dataTransfer);
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = hasFiles ? 'copy' : 'none';
-    }
-    if (hasFiles) {
-      setIsDragActive(true);
-    }
-  }, []);
-
-  const handleDragLeave = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-      setIsDragActive(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(
-    async (event: ReactDragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      const filePath = extractDatPath(event.dataTransfer);
-      setIsDragActive(false);
-
-      if (!filePath) {
-        setError('Only .dat or .xml files can be dropped.');
-        return;
-      }
-
-      setOpening(true);
-      setSaving(false);
-      setInfo(null);
-      setError(null);
-
-      try {
-        const response = await window.datAPI.loadDatFromPath(filePath);
-        if (!response.success) {
-          setError(response.error ?? 'Failed to load DAT file.');
-          return;
-        }
-
-        if (response.data) {
-          hydrateLoadedDat(response.data);
-        }
-      } catch (err) {
-        setError(`Failed to load DAT file: ${extractMessage(err)}`);
-      } finally {
-        setOpening(false);
-      }
-    },
-    [hydrateLoadedDat]
-  );
-
   const regionLabel = useMemo(() => {
     if (!selectedRegions.length) {
       return 'All regions';
@@ -611,7 +629,7 @@ function App() {
     ? selectedSystem.updateAvailable
       ? 'Download update'
       : 'Load'
-    : 'Download & load';
+    : 'Download & Load';
 
   const appUpdateMessage = useMemo(() => {
     switch (appUpdateStatus.state) {
@@ -651,13 +669,7 @@ function App() {
     appUpdateStatus.state !== 'checking' && appUpdateStatus.state !== 'downloading';
 
   return (
-    <main
-      className={`app-shell ${isDragActive ? 'drag-active' : ''}`}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <main className={`app-shell ${isDragActive ? 'drag-active' : ''}`}>
       <div className="app-container">
         <header className="app-header">
           <div className="app-header__brand">
@@ -763,7 +775,7 @@ function App() {
                     onClick={handleCheckAppUpdates}
                     disabled={appUpdateBusy}
                   >
-                    Check again
+                    Check Again
                   </button>
                 )}
                 {appUpdateStatus.state === 'available' && (
@@ -773,7 +785,7 @@ function App() {
                     onClick={handleDownloadAppUpdate}
                     disabled={appUpdateBusy}
                   >
-                    {appUpdateStatus.autoInstallSupported ? 'Download update' : 'View release'}
+                    {appUpdateStatus.autoInstallSupported ? 'Download Update' : 'View Release'}
                   </button>
                 )}
                 {appUpdateStatus.state === 'downloaded' && appUpdateStatus.autoInstallSupported && (
@@ -807,7 +819,7 @@ function App() {
                 onClick={handleRefreshSystems}
                 disabled={systemsRefreshing || systemsLoading}
               >
-                {systemsRefreshing ? 'Refreshing…' : 'Refresh systems'}
+                {systemsRefreshing ? 'Refreshing…' : 'Refresh Systems'}
               </button>
               <button
                 type="button"
@@ -815,7 +827,7 @@ function App() {
                 onClick={handleCheckUpdates}
                 disabled={updatesChecking || systemsLoading}
               >
-                {updatesChecking ? 'Checking…' : 'Check updates'}
+                {updatesChecking ? 'Checking…' : 'Check Updates'}
               </button>
             </div>
           </header>
@@ -922,7 +934,7 @@ function App() {
                 disabled={!selectedSlug || downloading || opening}
                 title="Force re-download from Redump"
               >
-                Force refresh
+                Force Refresh
               </button>
             </div>
           </div>
@@ -1042,13 +1054,7 @@ function App() {
         )}
       </div>
       {isDragActive && (
-        <div
-          className="drop-overlay"
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div className="drop-overlay">
           <div className="drop-overlay__content">
             <p>Drop DAT file to load</p>
           </div>
@@ -1076,6 +1082,66 @@ function formatFetchedAt(iso: string): string {
   return `as of ${date.toLocaleString()}`;
 }
 
+function normalizeSystemLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function matchSystemForDat(
+  data: LoadedDatPayload,
+  systems: RedumpSystem[]
+): RedumpSystem | undefined {
+  if (systems.length === 0) {
+    return undefined;
+  }
+
+  const pathSlugMatch = /(?:^|[\\/])dats[\\/]([^\\/]+)[\\/]/i.exec(data.filePath);
+  if (pathSlugMatch?.[1]) {
+    const pathSlug = pathSlugMatch[1];
+    const byPath = systems.find((system) => system.slug === pathSlug);
+    if (byPath) {
+      return byPath;
+    }
+  }
+
+  const headerLabel = normalizeSystemLabel(data.header.name);
+  const filenameLabel = normalizeSystemLabel(
+    data.originalFilename.replace(/\.(dat|xml)$/i, '')
+  );
+
+  const exactHeader = systems.find(
+    (system) => normalizeSystemLabel(system.name) === headerLabel
+  );
+  if (exactHeader) {
+    return exactHeader;
+  }
+
+  const scored = systems
+    .map((system) => {
+      const systemLabel = normalizeSystemLabel(system.name);
+      let score = 0;
+      if (headerLabel === systemLabel) {
+        score = 100;
+      } else if (headerLabel.includes(systemLabel) || systemLabel.includes(headerLabel)) {
+        score = Math.min(headerLabel.length, systemLabel.length);
+      } else if (
+        filenameLabel.includes(systemLabel) ||
+        systemLabel.includes(filenameLabel.split(' datfile')[0]?.trim() ?? '')
+      ) {
+        score = Math.min(filenameLabel.length, systemLabel.length) / 2;
+      }
+      return { system, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.system;
+}
+
 function extractMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -1098,35 +1164,6 @@ function resolveRegionSelection(availableRegions: string[]): string[] {
   }
 
   return preferredDefaultRegions.filter((region) => available.has(region));
-}
-
-function hasFilePayload(dataTransfer: DataTransfer | null): boolean {
-  if (!dataTransfer) {
-    return false;
-  }
-  if (Array.from(dataTransfer.types).includes('Files')) {
-    return true;
-  }
-  return dataTransfer.files.length > 0;
-}
-
-function extractDatPath(dataTransfer: DataTransfer | null): string | null {
-  if (!dataTransfer) {
-    return null;
-  }
-
-  const files = Array.from(dataTransfer.files);
-  for (const file of files) {
-    const candidate = window.datAPI.resolveFilePath(file);
-    if (!candidate) {
-      continue;
-    }
-    if (/\.(dat|xml)$/i.test(candidate) || /\.(dat|xml)$/i.test(file.name)) {
-      return candidate;
-    }
-  }
-
-  return null;
 }
 
 export default App;

@@ -1,10 +1,11 @@
 /// <reference types="vite/client" />
 
-export {};
-
-declare global {
-  interface Window {
-    datAPI: import('../../electron/preload').DatAPI;
-  }
+declare module '*.svg' {
+  const src: string;
+  export default src;
 }
 
+declare module '*.png' {
+  const src: string;
+  export default src;
+}
