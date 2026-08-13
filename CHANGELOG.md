@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.2] - 2026-08-13
+
+### Fixed
+
+- Only one app window: a second launch focuses the existing instance instead of opening another.
+
 ## [2.0.1] - 2026-08-13
 
 ### Fixed
@@ -119,6 +125,7 @@ First stable release of Redump DAT Filter.
 - Add live Redump DAT download with cached system picker.
 - Polish desktop shell with Redump theming and window state persistence.
 
+[2.0.2]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.2
 [2.0.1]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.1
 [2.0.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.0
 [1.9.1]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v1.9.1
