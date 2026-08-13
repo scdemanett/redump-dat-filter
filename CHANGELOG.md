@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.0] - 2026-08-13
+
+Tauri migration baseline for signed updater E2E testing (pre-2.0.0).
+
+### Changed
+
+- Replaced Electron main/preload with a Rust Tauri 2 backend that owns DAT parse/filter, Redump download/cache, dialogs, window state, and signed updates.
+- React UI talks to the backend through `@tauri-apps/api` `invoke`/`listen` instead of Electron preload IPC.
+- Packaging and CI use `tauri build` / `tauri-apps/tauri-action` instead of `electron-builder`.
+- Installed builds use the Tauri updater (`latest.json` + minisign); portable zips open the GitHub release page for updates.
+
+### Added
+
+- Drag-and-drop DAT loading via Tauri `onDragDropEvent`.
+- One-time migration of Electron `userData/cache` into the Tauri app data cache when empty.
+- Portable zips: `redump-dat-filter-unpacked-{VERSION}-{OS}-{ARCH}.zip`.
+- Window launch restores remembered size/position while hidden to avoid the small/white flicker.
+
+### Breaking
+
+- Electron 1.x installers and `electron-updater` metadata (`latest*.yml` / blockmaps) are not used by Tauri builds.
+- Cache path identifier is now `com.redump.filter`; Electron caches are copied on first launch when possible.
+
 ## [1.0.0] - 2026-08-10
 
 First stable release of Redump DAT Filter.

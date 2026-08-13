@@ -10,8 +10,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "electron"]
+    "types": ["node"]
   },
-  "include": ["electron", "src", "vite.config.mts"]
+  "include": ["src", "vite.config.mts"]
 }
-

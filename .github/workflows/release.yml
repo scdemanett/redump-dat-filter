@@ -5,45 +5,36 @@ on:
     tags:
       - v*
   workflow_dispatch:
-    inputs:
-      release_only:
-        description: Skip builds and publish artifacts from an existing workflow run
-        type: boolean
-        default: false
-      artifact_run_id:
-        description: Workflow run ID with build artifacts (required when release_only is true)
-        type: string
-        required: false
-      tag:
-        description: Release tag to publish (required when release_only is true, e.g. v0.3.2)
-        type: string
-        required: false
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+  publish-tauri:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            platform: win
-            args: --win --x64
-          - os: macos-latest
-            platform: mac
-            args: --mac --x64 --arm64
-          - os: ubuntu-latest
-            platform: linux
-            args: --linux --x64
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -51,124 +42,49 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Build app
-        run: npm run build
-
-      - name: Package
-        run: npx electron-builder ${{ matrix.args }} -p never
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Rename portable zip artifacts
-        run: node scripts/rename-release-artifacts.mjs
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: release-${{ matrix.platform }}
-          path: |
-            release/redump-dat-filter-setup-*
-            release/redump-dat-filter-unpacked-*
-            release/latest*.yml
-            release/*.blockmap
-          if-no-files-found: error
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: ${{ matrix.args }}
 
-  release:
-    needs: build
-    if: |
-      (
-        startsWith(github.ref, 'refs/tags/v') ||
-        (github.event_name == 'workflow_dispatch' && inputs.release_only == true)
-      ) &&
-      (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: ubuntu-latest
+      - name: Create portable unpacked zip
+        run: node scripts/create-portable-zip.mjs --args "${{ matrix.args }}"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_only == true && inputs.tag || github.ref }}
-
-      - name: Download artifacts from prior workflow run
-        if: github.event_name == 'workflow_dispatch' && inputs.release_only == true
+      - name: Upload portable unpacked zip
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          run_id="${{ inputs.artifact_run_id }}"
-          if [ -z "$run_id" ]; then
-            echo "artifact_run_id is required when release_only is true."
-            exit 1
-          fi
-
-          mkdir -p release-artifacts
-          gh run download "$run_id" --dir release-artifacts --pattern "release-*"
-
-      - name: Download artifacts
-        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
-        uses: actions/download-artifact@v8
-        with:
-          path: release-artifacts
-          merge-multiple: true
-
-      - name: List release artifacts
-        run: find release-artifacts -type f | sort
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.release_only }}" = "true" ]; then
-            tag="${{ inputs.tag }}"
-          else
-            tag="${GITHUB_REF_NAME}"
-          fi
-
-          if [ -z "$tag" ]; then
-            echo "Release tag is required."
-            exit 1
-          fi
-
-          if [[ ! "$tag" =~ ^v ]]; then
-            echo "Release tag must start with v (got: $tag)."
-            exit 1
-          fi
-
-          prerelease=false
-          if [[ "$tag" == *-* ]]; then
-            prerelease=true
-          fi
-
-          mapfile -t files < <(find release-artifacts -type f | sort -u)
+          tag="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          files=(portable-dist/redump-dat-filter-unpacked-*.zip)
           if [ "${#files[@]}" -eq 0 ]; then
-            echo "No release artifacts found."
+            echo "No portable zip found."
             exit 1
           fi
-
-          printf 'Uploading %s artifact(s) for %s:\n' "${#files[@]}" "$tag"
+          printf 'Uploading portable artifact(s):\n'
           printf ' - %s\n' "${files[@]}"
-
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists."
-          else
-            gh release create "$tag" \
-              --title "$tag" \
-              --generate-notes \
-              --draft=false \
-              --prerelease="$prerelease"
-          fi
-
           gh release upload "$tag" "${files[@]}" --clobber
-
-          if [ "$prerelease" = true ]; then
-            gh release edit "$tag" --draft=false --prerelease
-          else
-            gh release edit "$tag" --draft=false --latest
-          fi

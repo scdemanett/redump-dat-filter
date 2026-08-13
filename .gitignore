@@ -36,6 +36,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Tauri updater private keys / passwords (never commit)
+.tauri/
+/keys/
+/portable-dist/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

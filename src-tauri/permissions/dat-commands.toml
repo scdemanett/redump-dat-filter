@@ -1,0 +1,20 @@
+[[permission]]
+identifier = "allow-dat-commands"
+description = "Allow Redump DAT Filter backend commands"
+commands.allow = [
+  "ping",
+  "open_dat",
+  "load_from_path",
+  "get_current",
+  "preview_filter",
+  "save_filtered",
+  "list_systems",
+  "refresh_systems",
+  "check_updates",
+  "download_system",
+  "get_app_version",
+  "get_app_update_status",
+  "check_for_updates",
+  "download_update",
+  "install_update"
+]
