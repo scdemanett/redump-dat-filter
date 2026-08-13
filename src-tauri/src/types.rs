@@ -145,13 +145,17 @@ pub struct DownloadSystemResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum AppUpdateStatus {
+    #[serde(rename_all = "camelCase")]
     Idle {
         #[serde(skip_serializing_if = "Option::is_none")]
         current_version: Option<String>,
     },
+    #[serde(rename_all = "camelCase")]
     Disabled { reason: String },
     Checking,
+    #[serde(rename_all = "camelCase")]
     Unavailable { current_version: String },
+    #[serde(rename_all = "camelCase")]
     Available {
         current_version: String,
         latest_version: String,
@@ -161,10 +165,40 @@ pub enum AppUpdateStatus {
         release_url: Option<String>,
         auto_install_supported: bool,
     },
+    #[serde(rename_all = "camelCase")]
     Downloading { percent: f64 },
+    #[serde(rename_all = "camelCase")]
     Downloaded {
         latest_version: String,
         auto_install_supported: bool,
     },
+    #[serde(rename_all = "camelCase")]
     Error { message: String },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppUpdateStatus;
+
+    #[test]
+    fn app_update_status_serializes_camel_case_fields() {
+        let status = AppUpdateStatus::Unavailable {
+            current_version: "1.9.0".into(),
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["state"], "unavailable");
+        assert_eq!(json["currentVersion"], "1.9.0");
+        assert!(json.get("current_version").is_none());
+
+        let available = AppUpdateStatus::Available {
+            current_version: "1.9.0".into(),
+            latest_version: "1.9.1".into(),
+            release_notes: None,
+            release_url: None,
+            auto_install_supported: true,
+        };
+        let json = serde_json::to_value(&available).unwrap();
+        assert_eq!(json["latestVersion"], "1.9.1");
+        assert_eq!(json["autoInstallSupported"], true);
+    }
 }

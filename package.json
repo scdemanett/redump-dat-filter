@@ -1,6 +1,6 @@
 {
   "name": "redump-dat-filter",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Tauri desktop app for filtering Redump DAT files by region.",
   "author": "Steven Demanett",
   "license": "MIT",

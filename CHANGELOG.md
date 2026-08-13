@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.1] - 2026-08-13
+
+Updater E2E follow-up on the 1.9.0 Tauri baseline.
+
+### Fixed
+
+- App update status IPC now serializes camelCase fields so the UI shows the current version instead of `vundefined`.
+- Portable zip packaging looks under `target/<triple>/release` when `--target` is set (macOS CI).
+- Linux build warning for unused `dir` in portable/install detection.
+- NSIS finish page leaves **Create desktop shortcut** unchecked by default.
+
+### Changed
+
+- Bumped Rust deps: `tauri` 2.11.5, `zip` 8.6, `uuid` 1.24; MSRV 1.88.
+
 ## [1.9.0] - 2026-08-13
 
 Tauri migration baseline for signed updater E2E testing (pre-2.0.0).

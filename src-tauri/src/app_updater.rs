@@ -70,14 +70,14 @@ fn supports_auto_install(_app: &AppHandle) -> bool {
   let Ok(exe) = std::env::current_exe() else {
     return false;
   };
-  let Some(dir) = exe.parent() else {
-    return false;
-  };
 
   #[cfg(target_os = "windows")]
   {
     // Tauri/Electron NSIS installs ship an uninstaller next to the binary.
     // Portable zips are just the exe, so they fall back to the release page.
+    let Some(dir) = exe.parent() else {
+      return false;
+    };
     match std::fs::read_dir(dir) {
       Ok(entries) => entries.flatten().any(|entry| {
         let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
