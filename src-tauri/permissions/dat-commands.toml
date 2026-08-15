@@ -14,6 +14,7 @@ commands.allow = [
   "refresh_systems",
   "check_updates",
   "download_system",
+  "download_extra",
   "get_app_version",
   "get_app_update_status",
   "check_for_updates",

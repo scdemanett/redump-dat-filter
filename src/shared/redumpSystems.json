@@ -1,422 +1,744 @@
 [
   {
     "name": "3DO Interactive Multiplayer",
-    "slug": "3DO"
+    "slug": "3DO",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Acorn Archimedes & Risc PC",
-    "slug": "ARCH"
+    "slug": "ARCH",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "American Laser Games 3DO-based Arcade",
-    "slug": "3DOARCADE"
+    "slug": "3DOARCADE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Apple Macintosh",
-    "slug": "MAC"
+    "slug": "MAC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": true
   },
   {
     "name": "Apple Newton",
-    "slug": "NEWTON"
+    "slug": "NEWTON",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Apple Pippin",
-    "slug": "PIPPIN"
+    "slug": "PIPPIN",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Atari Jaguar CD Interactive Multimedia System",
-    "slug": "AJCD"
+    "slug": "AJCD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Atari ST series",
-    "slug": "ATARIST"
+    "slug": "ATARIST",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Audio CD",
-    "slug": "AUDIO-CD"
+    "slug": "AUDIO-CD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Bandai Playdia Quick Interactive System",
-    "slug": "QIS"
+    "slug": "QIS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "BD-Video",
-    "slug": "BD-VIDEO"
+    "slug": "BD-VIDEO",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Capcom Play System III",
-    "slug": "CPS3"
+    "slug": "CPS3",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Commodore Amiga CD",
-    "slug": "ACD"
+    "slug": "ACD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Commodore Amiga CD32",
-    "slug": "CD32"
+    "slug": "CD32",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Commodore Amiga CDTV",
-    "slug": "CDTV"
+    "slug": "CDTV",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Cybiko",
-    "slug": "CYBIKO"
+    "slug": "CYBIKO",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Datel PlayStation Cheat Device Updates",
-    "slug": "PSXGS"
+    "slug": "PSXGS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "DVD-Video",
-    "slug": "DVD-VIDEO"
+    "slug": "DVD-VIDEO",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Enhanced CD",
-    "slug": "ENHANCED-CD"
+    "slug": "ENHANCED-CD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Fujitsu FM Towns series",
-    "slug": "FMT"
+    "slug": "FMT",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Funworld Photo Play",
-    "slug": "FPP"
+    "slug": "FPP",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "FuRyu & Omron Purikura",
-    "slug": "FPURI"
+    "slug": "FPURI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Hasbro iON Educational Gaming System",
-    "slug": "ION"
+    "slug": "ION",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Hasbro VideoNow",
-    "slug": "HVN"
+    "slug": "HVN",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Hasbro VideoNow Color",
-    "slug": "HVNC"
+    "slug": "HVNC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Hasbro VideoNow Jr.",
-    "slug": "HVNJR"
+    "slug": "HVNJR",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Hasbro VideoNow XP",
-    "slug": "HVNXP"
+    "slug": "HVNXP",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "HD DVD-Video",
-    "slug": "HDDVD-VIDEO"
+    "slug": "HDDVD-VIDEO",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "IBM PC compatible",
-    "slug": "PC"
+    "slug": "PC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": true
   },
   {
     "name": "Incredible Technologies Eagle",
-    "slug": "ITE"
+    "slug": "ITE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Konami e-Amusement",
-    "slug": "KEA"
+    "slug": "KEA",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Konami FireBeat",
-    "slug": "KFB"
+    "slug": "KFB",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Konami M2",
-    "slug": "KM2"
+    "slug": "KM2",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Konami Python 2",
-    "slug": "KP2"
+    "slug": "KP2",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Konami System 573",
-    "slug": "KS573"
+    "slug": "KS573",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Konami System GV",
-    "slug": "KSGV"
+    "slug": "KSGV",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Mattel Fisher-Price iXL",
-    "slug": "IXL"
+    "slug": "IXL",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Mattel HyperScan",
-    "slug": "HS"
+    "slug": "HS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Memorex Visual Information System",
-    "slug": "VIS"
+    "slug": "VIS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Merit Industries Megatouch ION",
-    "slug": "MION"
+    "slug": "MION",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Microsoft Pocket PC",
-    "slug": "PPC"
+    "slug": "PPC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Microsoft Xbox",
-    "slug": "XBOX"
+    "slug": "XBOX",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Microsoft Xbox 360",
-    "slug": "XBOX360"
+    "slug": "XBOX360",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Microsoft Xbox One",
-    "slug": "XBOXONE"
+    "slug": "XBOXONE",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Microsoft Xbox Series X",
-    "slug": "XBOXSX"
+    "slug": "XBOXSX",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "MP3 Audio Disc",
-    "slug": "MP3"
+    "slug": "MP3",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Namco Purikura",
-    "slug": "NPURI"
+    "slug": "NPURI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Namco System 22",
-    "slug": "NS22"
+    "slug": "NS22",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Namco System 246",
-    "slug": "NS246"
+    "slug": "NS246",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Namco System 256",
-    "slug": "NS256"
+    "slug": "NS256",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Namco · Sega · Nintendo Triforce",
-    "slug": "TRF"
+    "slug": "TRF",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Navisoft Naviken",
-    "slug": "NAVI"
+    "slug": "NAVI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "NEC PC Engine CD & TurboGrafx CD",
-    "slug": "PCE"
+    "slug": "PCE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "NEC PC-88 series",
-    "slug": "PC-88"
+    "slug": "PC-88",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "NEC PC-98 series",
-    "slug": "PC-98"
+    "slug": "PC-98",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "NEC PC-FX & PC-FXGA",
-    "slug": "PC-FX"
+    "slug": "PC-FX",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "New Jatre CD-i based Arcade",
-    "slug": "NEWJATRE"
+    "slug": "NEWJATRE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Nintendo GameCube",
-    "slug": "GC"
+    "slug": "GC",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Nintendo Wii",
-    "slug": "WII"
+    "slug": "WII",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Nintendo Wii U",
-    "slug": "WIIU"
+    "slug": "WIIU",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Palm OS",
-    "slug": "PALM"
+    "slug": "PALM",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Panasonic M2",
-    "slug": "M2"
+    "slug": "M2",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "PC-based Arcade",
-    "slug": "PCARCADE"
+    "slug": "PCARCADE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Philips CD-i",
-    "slug": "CDI"
+    "slug": "CDI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Photo CD",
-    "slug": "PHOTO-CD"
+    "slug": "PHOTO-CD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Playmaji Polymega",
-    "slug": "POLYMEGA"
+    "slug": "POLYMEGA",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Psion",
-    "slug": "PSION"
+    "slug": "PSION",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega ALLS",
-    "slug": "ALLS"
+    "slug": "ALLS",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Chihiro",
-    "slug": "CHIHIRO"
+    "slug": "CHIHIRO",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Dreamcast",
-    "slug": "DC"
+    "slug": "DC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Lindbergh",
-    "slug": "LINDBERGH"
+    "slug": "LINDBERGH",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Lindbergh Satellite Terminal PC",
-    "slug": "LINDPC"
+    "slug": "LINDPC",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Mega CD & Sega CD",
-    "slug": "MCD"
+    "slug": "MCD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Naomi",
-    "slug": "NAOMI"
+    "slug": "NAOMI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Naomi 2",
-    "slug": "NAOMI2"
+    "slug": "NAOMI2",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Naomi Satellite Terminal PC",
-    "slug": "NAOMIPC"
+    "slug": "NAOMIPC",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega Nu",
-    "slug": "NU"
+    "slug": "NU",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Nu 1.1",
-    "slug": "NU11"
+    "slug": "NU11",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Nu 2",
-    "slug": "NU2"
+    "slug": "NU2",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Nu SX",
-    "slug": "NUSX"
+    "slug": "NUSX",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Prologue 21 Multimedia Karaoke System",
-    "slug": "SP21"
+    "slug": "SP21",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sega RingEdge",
-    "slug": "SRE"
+    "slug": "SRE",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega RingEdge 2",
-    "slug": "SRE2"
+    "slug": "SRE2",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega RingWide",
-    "slug": "SRW"
+    "slug": "SRW",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sega Saturn",
-    "slug": "SS"
+    "slug": "SS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
+  },
+  {
+    "name": "Seibu CATS E-Touch",
+    "slug": "CATS",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "SGI Indigo series",
-    "slug": "INDIGO"
+    "slug": "INDIGO",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sharp X68000",
-    "slug": "X68K"
+    "slug": "X68K",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sharp Zaurus",
-    "slug": "ZAURUS"
+    "slug": "ZAURUS",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "SNK Neo Geo CD",
-    "slug": "NGCD"
+    "slug": "NGCD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sony Electronic Book",
-    "slug": "SEB"
+    "slug": "SEB",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sony PlayStation",
-    "slug": "PSX"
+    "slug": "PSX",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": true
   },
   {
     "name": "Sony PlayStation 2",
-    "slug": "PS2"
+    "slug": "PS2",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sony PlayStation 3",
-    "slug": "PS3"
+    "slug": "PS3",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Sony PlayStation 4",
-    "slug": "PS4"
+    "slug": "PS4",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sony PlayStation 5",
-    "slug": "PS5"
+    "slug": "PS5",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sony PlayStation Portable",
-    "slug": "PSP"
+    "slug": "PSP",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "Sun Microsystems Ultra",
-    "slug": "ULTRA"
+    "slug": "ULTRA",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Symbian",
-    "slug": "SYMBIAN"
+    "slug": "SYMBIAN",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "TAB-Austria Quizard",
-    "slug": "QUIZARD"
+    "slug": "QUIZARD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Texas Instruments TI series",
-    "slug": "TI"
+    "slug": "TI",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Tomy Kiss-Site",
-    "slug": "KSITE"
+    "slug": "KSITE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "Video CD",
-    "slug": "VCD"
+    "slug": "VCD",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "VM Labs Nuon",
-    "slug": "NUON"
+    "slug": "NUON",
+    "hasSerialVersion": true,
+    "hasCues": false,
+    "hasSbi": false
   },
   {
     "name": "VTech V.Flash & V.Smile Pro",
-    "slug": "VFLASH"
+    "slug": "VFLASH",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   },
   {
     "name": "ZAPiT Games Game Wave Family Entertainment System",
-    "slug": "GAMEWAVE"
+    "slug": "GAMEWAVE",
+    "hasSerialVersion": true,
+    "hasCues": true,
+    "hasSbi": false
   }
 ]

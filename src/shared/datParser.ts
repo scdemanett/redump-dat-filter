@@ -404,7 +404,7 @@ function deriveDescriptors(
   const generic = candidate ?? extractGenericDescriptor(description);
 
   const normalized = normalizeDescriptorLabel(generic ?? 'Datfile');
-  const originalDescriptor = generic ?? normalized;
+  const originalDescriptor = generic ? normalizeDescriptorLabel(generic) : normalized;
 
   return { originalDescriptor, normalizedDescriptor: normalized };
 }
@@ -426,7 +426,7 @@ function tryExtractDescriptor(description: string, systemName: string, totalGame
 }
 
 function extractGenericDescriptor(description: string): string | null {
-  const fallbackMatch = description.match(/-\s*([^-()]+)\s*\(\d+\)/);
+  const fallbackMatch = description.match(/-\s*([^-()]+(?:\s*\(\s*serial\s*,\s*version\s*\))?)\s*\(\d+\)/i);
   if (fallbackMatch && fallbackMatch[1]) {
     return fallbackMatch[1].trim();
   }
@@ -436,14 +436,19 @@ function extractGenericDescriptor(description: string): string | null {
   return null;
 }
 
+function splitSerialVersionSuffix(label: string): { stripped: string; hasSerial: boolean } {
+  const hasSerial = /\(\s*serial\s*,\s*version\s*\)/i.test(label);
+  const stripped = label
+    .replace(/\(\s*serial\s*,\s*version\s*\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { stripped, hasSerial };
+}
+
 function normalizeDescriptorLabel(label: string): string {
-  if (/datfile/i.test(label)) {
-    return 'Datfile';
-  }
-  if (/disc/i.test(label)) {
-    return 'Datfile';
-  }
-  return label;
+  const { stripped, hasSerial } = splitSerialVersionSuffix(label);
+  const base = /datfile/i.test(stripped) || /disc/i.test(stripped) || !stripped ? 'Datfile' : stripped;
+  return hasSerial ? `${base} (serial,version)` : base;
 }
 
 function buildFilteredHeader(
@@ -513,7 +518,7 @@ function deriveFilteredFilename(
     baseFilename && extensionMatch ? baseFilename.slice(0, -extensionMatch[1].length) : baseFilename;
 
   if (baseWithoutExtension) {
-    const pattern = /^(.*?)\s*-\s*([^-()]+?)\s*\((\d+)\)(.*)$/;
+    const pattern = /^(.*?)\s*-\s*([^-()]+?(?:\s*\(\s*serial\s*,\s*version\s*\))?)\s*\((\d+)\)(.*)$/i;
     const match = baseWithoutExtension.match(pattern);
     if (match) {
       const rest = match[4] ?? '';

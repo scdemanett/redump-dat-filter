@@ -78,11 +78,15 @@ export interface FilterPreviewResponse {
   filename?: string;
 }
 
+export type DatVariant = 'standard' | 'serial';
+
 export interface AppSettings {
   defaultRegions: string[];
   defaultSaveDir: string | null;
   showAllSystems: boolean;
   visibleSystemSlugs: string[];
+  preferSerialVersion: boolean;
+  systemDatVariants: Record<string, DatVariant>;
 }
 
 export interface GetSettingsResponse {
@@ -113,6 +117,9 @@ export interface RedumpSystem {
   downloaded?: boolean;
   updateAvailable?: boolean;
   cachedFilename?: string;
+  hasSerialVersion?: boolean;
+  hasCues?: boolean;
+  hasSbi?: boolean;
 }
 
 export interface ListSystemsResponse {
@@ -139,6 +146,7 @@ export interface CheckUpdatesResponse {
 export interface DownloadSystemRequest {
   slug: string;
   force?: boolean;
+  serialVersion?: boolean;
 }
 
 export interface DownloadSystemResponse {
@@ -146,4 +154,14 @@ export interface DownloadSystemResponse {
   error?: string;
   data?: LoadedDatPayload;
   fromCache?: boolean;
+}
+
+export type ExtraDownloadKind = 'cues' | 'sbi';
+
+export interface DownloadExtraResponse {
+  success: boolean;
+  canceled?: boolean;
+  error?: string;
+  savedPath?: string;
+  filename?: string;
 }

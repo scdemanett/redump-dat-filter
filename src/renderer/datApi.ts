@@ -7,6 +7,8 @@ import type {
   CheckUpdatesResponse,
   CurrentDatResponse,
   DownloadSystemResponse,
+  ExtraDownloadKind,
+  DownloadExtraResponse,
   FilterPreviewResponse,
   GetSettingsResponse,
   ListSystemsResponse,
@@ -49,11 +51,15 @@ export const datAPI = {
   checkUpdates: (force?: boolean): Promise<CheckUpdatesResponse> =>
     invoke('check_updates', { force: Boolean(force) }),
 
-  downloadSystem: (slug: string, force?: boolean): Promise<DownloadSystemResponse> =>
+  downloadSystem: (slug: string, force?: boolean, serialVersion?: boolean): Promise<DownloadSystemResponse> =>
     invoke('download_system', {
       slug,
-      force: Boolean(force)
+      force: Boolean(force),
+      serialVersion: serialVersion ?? null
     }),
+
+  downloadExtra: (slug: string, kind: ExtraDownloadKind): Promise<DownloadExtraResponse> =>
+    invoke('download_extra', { slug, kind }),
 
   getAppVersion: (): Promise<string> => invoke('get_app_version'),
 

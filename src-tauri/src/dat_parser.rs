@@ -543,7 +543,9 @@ fn derive_descriptors(header: &DatHeader, total_games: usize) -> (String, String
     let generic = candidate.or_else(|| extract_generic_descriptor(&description));
 
     let normalized = normalize_descriptor_label(generic.as_deref().unwrap_or("Datfile"));
-    let original_descriptor = generic.unwrap_or_else(|| normalized.clone());
+    let original_descriptor = generic
+        .map(|label| normalize_descriptor_label(&label))
+        .unwrap_or_else(|| normalized.clone());
 
     (original_descriptor, normalized)
 }
@@ -568,8 +570,9 @@ fn try_extract_descriptor(
 fn extract_generic_descriptor(description: &str) -> Option<String> {
     static FALLBACK_RE: OnceLock<Regex> = OnceLock::new();
     static DATFILE_RE: OnceLock<Regex> = OnceLock::new();
-    let fallback_re =
-        FALLBACK_RE.get_or_init(|| Regex::new(r"-\s*([^-()]+)\s*\(\d+\)").unwrap());
+    let fallback_re = FALLBACK_RE.get_or_init(|| {
+        Regex::new(r"(?i)-\s*([^-()]+(?:\s*\(\s*serial\s*,\s*version\s*\))?)\s*\(\d+\)").unwrap()
+    });
     let datfile_re = DATFILE_RE.get_or_init(|| Regex::new(r"(?i)datfile").unwrap());
 
     if let Some(caps) = fallback_re.captures(description) {
@@ -583,16 +586,35 @@ fn extract_generic_descriptor(description: &str) -> Option<String> {
     None
 }
 
+fn split_serial_version_suffix(label: &str) -> (String, bool) {
+    static SERIAL_RE: OnceLock<Regex> = OnceLock::new();
+    let serial_re = SERIAL_RE
+        .get_or_init(|| Regex::new(r"(?i)\(\s*serial\s*,\s*version\s*\)").unwrap());
+    let has_serial = serial_re.is_match(label);
+    let stripped = serial_re.replace_all(label, "");
+    let stripped = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
+    (stripped, has_serial)
+}
+
 fn normalize_descriptor_label(label: &str) -> String {
     static DATFILE_RE: OnceLock<Regex> = OnceLock::new();
     static DISC_RE: OnceLock<Regex> = OnceLock::new();
     let datfile_re = DATFILE_RE.get_or_init(|| Regex::new(r"(?i)datfile").unwrap());
     let disc_re = DISC_RE.get_or_init(|| Regex::new(r"(?i)disc").unwrap());
 
-    if datfile_re.is_match(label) || disc_re.is_match(label) {
+    let (stripped, has_serial) = split_serial_version_suffix(label);
+    let base = if datfile_re.is_match(&stripped) || disc_re.is_match(&stripped) {
+        "Datfile".to_string()
+    } else if stripped.is_empty() {
         "Datfile".to_string()
     } else {
-        label.to_string()
+        stripped
+    };
+
+    if has_serial {
+        format!("{base} (serial,version)")
+    } else {
+        base
     }
 }
 
@@ -746,8 +768,10 @@ fn derive_filtered_filename(
     static EXT_RE: OnceLock<Regex> = OnceLock::new();
     static PATTERN_RE: OnceLock<Regex> = OnceLock::new();
     let ext_re = EXT_RE.get_or_init(|| Regex::new(r"(\.[^.]+)$").unwrap());
-    let pattern_re = PATTERN_RE
-        .get_or_init(|| Regex::new(r"^(.*?)\s*-\s*([^-()]+?)\s*\((\d+)\)(.*)$").unwrap());
+    let pattern_re = PATTERN_RE.get_or_init(|| {
+        Regex::new(r"(?i)^(.*?)\s*-\s*([^-()]+?(?:\s*\(\s*serial\s*,\s*version\s*\))?)\s*\((\d+)\)(.*)$")
+            .unwrap()
+    });
 
     let (extension, base_without_extension) = if let Some(base) = base_filename {
         if let Some(caps) = ext_re.captures(base) {
@@ -954,6 +978,58 @@ mod tests {
         let game_re = Regex::new(r#"<game name="Halo \(USA\)">"#).unwrap();
         assert!(game_re.is_match(&result.xml));
         assert!(!result.xml.contains("Forza Motorsport"));
+    }
+
+    #[test]
+    fn preserves_serial_version_descriptor_tags_and_filename() {
+        let xml = r#"<?xml version="1.0"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+<datafile>
+  <header>
+    <name>Sony - PlayStation</name>
+    <description>Sony - PlayStation - Datfile (serial,version) (2) (2026-08-15 10-57-09)</description>
+    <version>2026-08-15 10-57-09</version>
+    <date>2026-08-15</date>
+    <author>redump.org</author>
+    <homepage>http://redump.org/</homepage>
+    <url>http://redump.org/</url>
+  </header>
+  <game name="Ridge Racer (USA)">
+    <category>Games</category>
+    <description>Ridge Racer (USA)</description>
+    <id>1</id>
+    <serial>SCUS-94300</serial>
+    <rom name="Ridge Racer (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+  <game name="Tekken (Europe)">
+    <category>Games</category>
+    <description>Tekken (Europe)</description>
+    <id>2</id>
+    <serial>SCES-00005</serial>
+    <rom name="Tekken (Europe)" size="1" crc="bbbbbbbb"/>
+  </game>
+</datafile>"#;
+        let parsed = parse_dat(xml).expect("parse serial DAT");
+        assert_eq!(parsed.descriptor, "Datfile (serial,version)");
+        assert_eq!(parsed.normalized_descriptor, "Datfile (serial,version)");
+
+        let result = filter_dat_by_regions(
+            &parsed,
+            &["USA".to_string()],
+            Some("Sony - PlayStation - Datfile (serial,version) (2) (2026-08-15 10-57-09).dat"),
+        )
+        .unwrap();
+
+        assert_eq!(result.games.len(), 1);
+        assert!(result
+            .header
+            .description
+            .as_deref()
+            .unwrap_or("")
+            .contains("Datfile (serial,version)"));
+        assert!(result.filename.contains("Datfile (serial,version)"));
+        assert!(result.xml.contains("<serial>SCUS-94300</serial>"));
+        assert!(!result.xml.contains("Tekken"));
     }
 
     #[test]

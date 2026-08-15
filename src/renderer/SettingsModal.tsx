@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 
-import { CANONICAL_REGION_LIST, type AppSettings, type RedumpSystem } from '../shared';
+import { CANONICAL_REGION_LIST, type AppSettings, type DatVariant, type RedumpSystem } from '../shared';
+import { DatVariantToggle } from './DatVariantToggle';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -166,6 +167,7 @@ export function SettingsModal({
         <div className="settings-top-row">
         <section className="settings-section">
           <h3>Appearance</h3>
+          <p className="panel-description">Change the app theme.</p>
           <div className="theme-toggle" role="group" aria-label="Color theme">
             <button
               type="button"
@@ -202,6 +204,18 @@ export function SettingsModal({
               <span>Dark</span>
             </button>
           </div>
+        </section>
+
+        <section className="settings-section">
+          <h3>DAT File</h3>
+          <p className="panel-description">Default Redump DAT download. Systems can override this on the main screen.</p>
+          <DatVariantToggle
+            value={draft.preferSerialVersion ? 'serial' : 'standard'}
+            onChange={(value: DatVariant) =>
+              setDraft((current) => ({ ...current, preferSerialVersion: value === 'serial' }))
+            }
+            disabled={saving}
+          />
         </section>
 
         <section className="settings-section">

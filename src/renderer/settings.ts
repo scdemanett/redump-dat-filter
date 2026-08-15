@@ -1,4 +1,4 @@
-import type { AppSettings } from '../shared';
+import type { AppSettings, DatVariant, LoadedDatPayload } from '../shared';
 import { datAPI } from './datApi';
 
 export const DEFAULT_REGIONS = ['USA', 'World'];
@@ -8,8 +8,31 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultRegions: [...DEFAULT_REGIONS],
   defaultSaveDir: null,
   showAllSystems: true,
-  visibleSystemSlugs: []
+  visibleSystemSlugs: [],
+  preferSerialVersion: false,
+  systemDatVariants: {}
 };
+
+export function resolveDatVariant(
+  settings: Pick<AppSettings, 'preferSerialVersion' | 'systemDatVariants'>,
+  slug?: string | null
+): DatVariant {
+  if (slug && settings.systemDatVariants[slug]) {
+    return settings.systemDatVariants[slug];
+  }
+  return settings.preferSerialVersion ? 'serial' : 'standard';
+}
+
+export function isSerialVersionDat(data: LoadedDatPayload): boolean {
+  const haystack = [
+    data.originalFilename,
+    data.header.description ?? '',
+    data.descriptor,
+    data.normalizedDescriptor,
+    data.filePath
+  ].join('\n');
+  return /\(\s*serial\s*,\s*version\s*\)/i.test(haystack) || /[\\/]serial[\\/]data\.dat$/i.test(data.filePath);
+}
 
 export function filterVisibleSystems<T extends { slug: string }>(
   systems: T[],
@@ -65,6 +88,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
     ...DEFAULT_APP_SETTINGS,
     ...settings,
     visibleSystemSlugs,
-    showAllSystems: settings.showAllSystems ?? visibleSystemSlugs.length === 0
+    showAllSystems: settings.showAllSystems ?? visibleSystemSlugs.length === 0,
+    preferSerialVersion: settings.preferSerialVersion ?? false,
+    systemDatVariants: settings.systemDatVariants ?? {}
   };
 }

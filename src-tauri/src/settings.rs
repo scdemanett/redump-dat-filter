@@ -1,4 +1,4 @@
-use crate::types::AppSettings;
+use crate::types::{AppSettings, DatVariant};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -87,6 +87,14 @@ pub fn filter_downloaded_slugs(app: &AppHandle, slugs: Vec<String>) -> Vec<Strin
     filter_slugs(&settings.visible_system_slugs, slugs)
 }
 
+pub fn resolve_dat_variant(settings: &AppSettings, slug: &str) -> DatVariant {
+    settings
+        .system_dat_variants
+        .get(slug)
+        .copied()
+        .unwrap_or_else(|| DatVariant::from_serial_flag(settings.prefer_serial_version))
+}
+
 fn normalize_settings(mut settings: AppSettings) -> AppSettings {
     if let Some(dir) = settings.default_save_dir.as_deref().map(str::trim) {
         settings.default_save_dir = if dir.is_empty() {
@@ -100,6 +108,12 @@ fn normalize_settings(mut settings: AppSettings) -> AppSettings {
         .into_iter()
         .map(|slug| slug.trim().to_string())
         .filter(|slug| !slug.is_empty())
+        .collect();
+    settings.system_dat_variants = settings
+        .system_dat_variants
+        .into_iter()
+        .map(|(slug, variant)| (slug.trim().to_string(), variant))
+        .filter(|(slug, _)| !slug.is_empty())
         .collect();
     if settings.show_all_systems && !settings.visible_system_slugs.is_empty() {
         settings.show_all_systems = false;
@@ -119,6 +133,8 @@ mod tests {
             default_save_dir: Some("  ".into()),
             show_all_systems: true,
             visible_system_slugs: vec![" psx ".into(), "".into(), "gc".into()],
+            prefer_serial_version: false,
+            system_dat_variants: Default::default(),
         };
         let normalized = normalize_settings(settings);
         assert_eq!(normalized.default_save_dir, None);
@@ -134,6 +150,28 @@ mod tests {
         assert_eq!(
             super::filter_slugs(&["gc".into()], slugs),
             vec!["gc".to_string()]
+        );
+    }
+
+    #[test]
+    fn resolve_dat_variant_prefers_per_system_override() {
+        let mut settings = AppSettings::default();
+        settings.prefer_serial_version = true;
+        assert_eq!(
+            super::resolve_dat_variant(&settings, "psx"),
+            crate::types::DatVariant::Serial
+        );
+
+        settings
+            .system_dat_variants
+            .insert("psx".into(), crate::types::DatVariant::Standard);
+        assert_eq!(
+            super::resolve_dat_variant(&settings, "psx"),
+            crate::types::DatVariant::Standard
+        );
+        assert_eq!(
+            super::resolve_dat_variant(&settings, "gc"),
+            crate::types::DatVariant::Serial
         );
     }
 }

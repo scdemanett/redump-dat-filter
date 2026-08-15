@@ -270,7 +270,7 @@ main.app-shell {
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.theme-toggle__option:hover {
+.theme-toggle__option:hover:enabled {
   color: var(--fg);
   background: var(--surface-hover);
 }
@@ -281,7 +281,12 @@ main.app-shell {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-.theme-toggle__option:focus-visible {
+.theme-toggle__option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.theme-toggle__option:focus-visible:enabled {
   outline: 2px solid var(--primary-focus);
   outline-offset: 1px;
 }
@@ -290,6 +295,86 @@ main.app-shell {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
+}
+
+.theme-toggle--compact .theme-toggle__option {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+.theme-toggle.is-disabled {
+  pointer-events: none;
+}
+
+.split-button {
+  display: inline-flex;
+  position: relative;
+  align-items: stretch;
+  gap: 0;
+}
+
+.split-button .split-button__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: 1.1rem;
+}
+
+.split-button .split-button__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  width: 1.85rem;
+  min-width: 1.85rem;
+  padding: 0;
+  margin: 0;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.22);
+}
+
+.split-button .split-button__chevron svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  display: block;
+}
+
+.split-button__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 20;
+  min-width: 12.5rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--form-border);
+  box-shadow: var(--shadow);
+}
+
+.split-button__item {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 0.2rem;
+  background: transparent;
+  color: var(--fg);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.split-button__item:hover:enabled,
+.split-button__item:focus-visible {
+  background: var(--surface-hover);
+  color: var(--heading);
+  outline: none;
+}
+
+.split-button__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .button {
@@ -385,6 +470,48 @@ main.app-shell {
 
 .panel.redump-panel {
   z-index: 1;
+}
+
+.panel.redump-panel .panel-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.panel.redump-panel .panel-header > :first-child {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+
+.panel.redump-panel .panel-header h3 {
+  white-space: nowrap;
+}
+
+.panel.redump-panel .panel-actions {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin-left: auto;
+}
+
+.panel-actions__stack {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.panel-actions__stack .button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1399px) {
+  .panel-actions__stack {
+    flex-direction: column;
+  }
+
+  .panel-actions__stack .button {
+    width: 100%;
+  }
 }
 
 .panel.redump-panel.is-picker-open {
@@ -649,6 +776,7 @@ main.app-shell {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .regions-grid {
@@ -682,6 +810,13 @@ main.app-shell {
 
 .region-item:hover {
   border-color: var(--primary);
+}
+
+.region-item.is-disabled,
+.region-item.is-disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.55;
+  border-color: var(--form-border);
 }
 
 .preview-status {
@@ -892,7 +1027,7 @@ main.app-shell.drag-active .app-container {
 
 .settings-top-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(16rem, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
@@ -902,6 +1037,20 @@ main.app-shell.drag-active .app-container {
   padding-top: 0;
   border-left: 1px solid var(--muted-border);
   padding-left: 1.25rem;
+}
+
+@media (max-width: 1399px) {
+  .settings-top-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-top-row .settings-section:last-child {
+    grid-column: 1 / -1;
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--muted-border);
+    padding-top: 1.25rem;
+  }
 }
 
 .settings-columns {

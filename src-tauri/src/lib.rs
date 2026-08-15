@@ -70,6 +70,7 @@ pub fn run() {
       commands::refresh_systems,
       commands::check_updates,
       commands::download_system,
+      commands::download_extra,
       commands::get_app_version,
       commands::get_app_update_status,
       commands::check_for_updates,

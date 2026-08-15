@@ -3,6 +3,7 @@
 
 use crate::dat_parser::{DatHeader, FilterSummary};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +69,23 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DatVariant {
+    Standard,
+    Serial,
+}
+
+impl DatVariant {
+    pub fn from_serial_flag(serial: bool) -> Self {
+        if serial {
+            Self::Serial
+        } else {
+            Self::Standard
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -79,6 +97,10 @@ pub struct AppSettings {
     pub show_all_systems: bool,
     #[serde(default)]
     pub visible_system_slugs: Vec<String>,
+    #[serde(default)]
+    pub prefer_serial_version: bool,
+    #[serde(default)]
+    pub system_dat_variants: BTreeMap<String, DatVariant>,
 }
 
 impl Default for AppSettings {
@@ -88,6 +110,8 @@ impl Default for AppSettings {
             default_save_dir: None,
             show_all_systems: true,
             visible_system_slugs: Vec::new(),
+            prefer_serial_version: false,
+            system_dat_variants: BTreeMap::new(),
         }
     }
 }
@@ -136,6 +160,12 @@ pub struct RedumpSystem {
     pub update_available: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cached_filename: Option<String>,
+    #[serde(default)]
+    pub has_serial_version: bool,
+    #[serde(default)]
+    pub has_cues: bool,
+    #[serde(default)]
+    pub has_sbi: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,6 +210,20 @@ pub struct DownloadSystemResponse {
     pub from_cache: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadExtraResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canceled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saved_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+}
+
 /// Matches the TypeScript `AppUpdateStatus` discriminated union (`state` tag).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
@@ -217,7 +261,8 @@ pub enum AppUpdateStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppSettings, AppUpdateStatus};
+    use super::{AppSettings, AppUpdateStatus, DatVariant};
+    use std::collections::BTreeMap;
 
     #[test]
     fn app_update_status_serializes_camel_case_fields() {
@@ -248,12 +293,16 @@ mod tests {
             default_save_dir: Some(r"D:\DATs\filtered".into()),
             show_all_systems: false,
             visible_system_slugs: vec!["psx".into()],
+            prefer_serial_version: true,
+            system_dat_variants: BTreeMap::from([("psx".into(), DatVariant::Serial)]),
         };
         let json = serde_json::to_value(&settings).unwrap();
         assert_eq!(json["defaultRegions"][0], "USA");
         assert_eq!(json["defaultSaveDir"], r"D:\DATs\filtered");
         assert_eq!(json["showAllSystems"], false);
         assert_eq!(json["visibleSystemSlugs"][0], "psx");
+        assert_eq!(json["preferSerialVersion"], true);
+        assert_eq!(json["systemDatVariants"]["psx"], "serial");
         assert!(json.get("default_save_dir").is_none());
     }
 }

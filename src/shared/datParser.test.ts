@@ -71,6 +71,49 @@ describe('filterDatByRegions', () => {
     assert.doesNotMatch(result.xml, /Forza Motorsport/);
   });
 
+  it('preserves serial/version descriptors, tags, and filenames', () => {
+    const xml = `<?xml version="1.0"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+<datafile>
+  <header>
+    <name>Sony - PlayStation</name>
+    <description>Sony - PlayStation - Datfile (serial,version) (2) (2026-08-15 10-57-09)</description>
+    <version>2026-08-15 10-57-09</version>
+    <date>2026-08-15</date>
+    <author>redump.org</author>
+  </header>
+  <game name="Ridge Racer (USA)">
+    <category>Games</category>
+    <description>Ridge Racer (USA)</description>
+    <id>1</id>
+    <serial>SCUS-94300</serial>
+    <rom name="Ridge Racer (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+  <game name="Tekken (Europe)">
+    <category>Games</category>
+    <description>Tekken (Europe)</description>
+    <id>2</id>
+    <serial>SCES-00005</serial>
+    <rom name="Tekken (Europe)" size="1" crc="bbbbbbbb"/>
+  </game>
+</datafile>`;
+    const parsed = parseDat(xml);
+    assert.equal(parsed.descriptor, 'Datfile (serial,version)');
+    assert.equal(parsed.normalizedDescriptor, 'Datfile (serial,version)');
+
+    const result = filterDatByRegions(
+      parsed,
+      ['USA'],
+      'Sony - PlayStation - Datfile (serial,version) (2) (2026-08-15 10-57-09).dat'
+    );
+
+    assert.equal(result.games.length, 1);
+    assert.match(result.header.description!, /Datfile \(serial,version\)/);
+    assert.match(result.filename, /Datfile \(serial,version\)/);
+    assert.match(result.xml, /<serial>SCUS-94300<\/serial>/);
+    assert.doesNotMatch(result.xml, /Tekken/);
+  });
+
   it('returns all games when no regions are selected', () => {
     const parsed = parseDat(SAMPLE_DAT);
     const result = filterDatByRegions(parsed, [], 'source.dat');

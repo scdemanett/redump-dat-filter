@@ -6,6 +6,7 @@ import type {
   AppSettings,
   AppUpdateStatus,
   DatHeader,
+  ExtraDownloadKind,
   FilterSummary,
   LoadedDatPayload,
   RedumpSystem,
@@ -13,7 +14,14 @@ import type {
 } from '../shared';
 import appIconUrl from '../../build/icon.svg';
 import { datAPI } from './datApi';
-import { DEFAULT_APP_SETTINGS, filterVisibleSystems, loadAppSettings } from './settings';
+import { DatVariantToggle } from './DatVariantToggle';
+import {
+  DEFAULT_APP_SETTINGS,
+  filterVisibleSystems,
+  isSerialVersionDat,
+  loadAppSettings,
+  resolveDatVariant
+} from './settings';
 import { SettingsModal, type ThemeMode } from './SettingsModal';
 import { ContextCopyMenu } from './ContextCopyMenu';
 
@@ -59,6 +67,8 @@ function App() {
   const [selectedSlug, setSelectedSlug] = useState('');
   const [systemPickerOpen, setSystemPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [extraDownloading, setExtraDownloading] = useState(false);
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
 
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appUpdateStatus, setAppUpdateStatus] = useState<AppUpdateStatus>({ state: 'idle' });
@@ -68,15 +78,23 @@ function App() {
   const previewRequestId = useRef(0);
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
   const systemSearchRef = useRef<HTMLInputElement | null>(null);
+  const saveMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef(settings);
+  const systemsRef = useRef(systems);
+  const hydrateLoadedDatRef = useRef<(
+    data: LoadedDatPayload,
+    message?: string,
+    options?: { systems?: RedumpSystem[]; preferSlug?: string; syncVariant?: boolean }
+  ) => void>(() => {});
   const themeBeforeSettings = useRef(theme);
   settingsRef.current = settings;
+  systemsRef.current = systems;
 
   const hydrateLoadedDat = useCallback(
     (
       data: LoadedDatPayload,
       message?: string,
-      options?: { systems?: RedumpSystem[]; preferSlug?: string }
+      options?: { systems?: RedumpSystem[]; preferSlug?: string; syncVariant?: boolean }
     ) => {
       setLoadedDat(data);
       setSelectedRegions(resolveRegionSelection(data.regions, settingsRef.current.defaultRegions));
@@ -86,16 +104,41 @@ function App() {
       setInfo(message ?? `Loaded ${data.originalFilename}`);
       setError(null);
 
-      if (options?.preferSlug) {
-        setSelectedSlug(options.preferSlug);
+      const matchedSlug =
+        options?.preferSlug ??
+        matchSystemForDat(data, options?.systems ?? systemsRef.current)?.slug ??
+        '';
+      setSelectedSlug(matchedSlug);
+
+      if (!matchedSlug || !options?.syncVariant) {
         return;
       }
 
-      const matched = matchSystemForDat(data, options?.systems ?? systems);
-      setSelectedSlug(matched?.slug ?? '');
+      const detected = isSerialVersionDat(data) ? 'serial' : 'standard';
+      if (resolveDatVariant(settingsRef.current, matchedSlug) === detected) {
+        return;
+      }
+
+      const next: AppSettings = {
+        ...settingsRef.current,
+        systemDatVariants: {
+          ...settingsRef.current.systemDatVariants,
+          [matchedSlug]: detected
+        }
+      };
+      void datAPI
+        .saveSettings(next)
+        .then((saved) => {
+          settingsRef.current = saved;
+          setSettings(saved);
+        })
+        .catch((err) => {
+          console.error(err);
+        });
     },
-    [systems]
+    []
   );
+  hydrateLoadedDatRef.current = hydrateLoadedDat;
 
   const applySystemsResponse = useCallback(
     (response: {
@@ -161,14 +204,14 @@ function App() {
       .getCurrentDat()
       .then((response) => {
         if (response.loaded && response.data) {
-          hydrateLoadedDat(response.data);
+          hydrateLoadedDatRef.current(response.data);
         }
       })
       .catch((err) => {
         console.error(err);
         setError(`Failed to restore previous session: ${extractMessage(err)}`);
       });
-  }, [hydrateLoadedDat, settingsReady]);
+  }, [settingsReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -342,7 +385,7 @@ function App() {
               return;
             }
             if (response.data) {
-              hydrateLoadedDat(response.data);
+              hydrateLoadedDat(response.data, undefined, { syncVariant: true });
             }
           })
           .catch((err) => {
@@ -397,6 +440,31 @@ function App() {
       systemSearchRef.current?.focus();
     }
   }, [systemPickerOpen]);
+
+  useEffect(() => {
+    if (!saveMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!saveMenuRef.current?.contains(event.target as Node)) {
+        setSaveMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSaveMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [saveMenuOpen]);
 
   useEffect(() => {
     if (!loadedDat) {
@@ -466,6 +534,13 @@ function App() {
     [selectedSlug, systems]
   );
 
+  const selectedDatVariant = useMemo(
+    () => resolveDatVariant(settings, selectedSlug || null),
+    [selectedSlug, settings]
+  );
+
+  const hasExtraDownloads = Boolean(selectedSystem?.hasCues || selectedSystem?.hasSbi);
+
   const updateCount = useMemo(
     () => visibleSystems.filter((system) => system.updateAvailable).length,
     [visibleSystems]
@@ -489,7 +564,7 @@ function App() {
       }
 
       if (response.data) {
-        hydrateLoadedDat(response.data);
+        hydrateLoadedDat(response.data, undefined, { syncVariant: true });
       }
     } catch (err) {
       setError(`Failed to open DAT file: ${extractMessage(err)}`);
@@ -552,7 +627,11 @@ function App() {
       setInfo(null);
 
       try {
-        const response = await datAPI.downloadSystem(selectedSlug, force);
+        const response = await datAPI.downloadSystem(
+          selectedSlug,
+          force,
+          resolveDatVariant(settingsRef.current, selectedSlug) === 'serial'
+        );
         if (!response.success || !response.data) {
           setError(response.error ?? 'Failed to download Redump DAT.');
           return;
@@ -628,6 +707,82 @@ function App() {
     }
   }, [loadedDat, selectedRegions]);
 
+  const handleDatVariantChange = useCallback(
+    async (variant: 'standard' | 'serial') => {
+      if (!selectedSlug) {
+        return;
+      }
+      if (resolveDatVariant(settingsRef.current, selectedSlug) === variant) {
+        return;
+      }
+
+      const next: AppSettings = {
+        ...settingsRef.current,
+        systemDatVariants: {
+          ...settingsRef.current.systemDatVariants,
+          [selectedSlug]: variant
+        }
+      };
+
+      settingsRef.current = next;
+      setSettings(next);
+
+      try {
+        const saved = await datAPI.saveSettings(next);
+        settingsRef.current = saved;
+        setSettings(saved);
+        const refreshed = await datAPI.listSystems();
+        if (refreshed.success) {
+          applySystemsResponse(refreshed);
+        }
+      } catch (err) {
+        setError(`Failed to save DAT variant: ${extractMessage(err)}`);
+      }
+    },
+    [applySystemsResponse, selectedSlug]
+  );
+
+  const handleDownloadExtra = useCallback(
+    async (kind: ExtraDownloadKind) => {
+      if (!selectedSlug) {
+        return;
+      }
+
+      setSaveMenuOpen(false);
+      setExtraDownloading(true);
+      setError(null);
+      setInfo(null);
+
+      try {
+        const response = await datAPI.downloadExtra(selectedSlug, kind);
+        if (!response.success) {
+          if (response.canceled) {
+            setInfo('Download cancelled.');
+            return;
+          }
+          setError(response.error ?? `Failed to download ${kind === 'cues' ? 'cuesheets' : 'SBI archive'}.`);
+          return;
+        }
+
+        const destination = response.filename ?? response.savedPath ?? `${kind}.zip`;
+        setInfo(`Saved ${destination}`);
+
+        try {
+          const latest = await datAPI.getSettings();
+          settingsRef.current = latest.settings;
+          setSettings(latest.settings);
+        } catch {
+          // keep in-memory settings if refresh fails
+        }
+      } catch (err) {
+        setError(`Failed to download ${kind === 'cues' ? 'cuesheets' : 'SBI archive'}: ${extractMessage(err)}`);
+      } finally {
+        setExtraDownloading(false);
+      }
+    },
+    [selectedSlug]
+  );
+
   const regionLabel = useMemo(() => {
     if (!selectedRegions.length) {
       return 'All regions';
@@ -636,7 +791,8 @@ function App() {
   }, [selectedRegions]);
 
   const canPreview = !!loadedDat;
-  const canSave = !!previewSummary && !previewLoading && !saving;
+  const datBusy = opening || downloading;
+  const canSave = !!previewSummary && !previewLoading && !saving && !datBusy;
   const downloadLabel = selectedSystem?.downloaded
     ? selectedSystem.updateAvailable
       ? 'Download update'
@@ -715,9 +871,17 @@ function App() {
       ) {
         setSelectedSlug('');
       }
+      try {
+        const refreshed = await datAPI.listSystems();
+        if (refreshed.success) {
+          applySystemsResponse(refreshed);
+        }
+      } catch {
+        // keep current system list if refresh fails
+      }
       setSettingsOpen(false);
     },
-    [loadedDat, persistTheme, selectedSlug, theme]
+    [applySystemsResponse, loadedDat, persistTheme, selectedSlug, theme]
   );
 
   return (
@@ -774,12 +938,69 @@ function App() {
                 />
               </svg>
             </button>
-            <button type="button" className="button" onClick={handleOpenDat} disabled={opening || downloading}>
+            <button type="button" className="button ghost" onClick={handleOpenDat} disabled={opening || downloading}>
               {opening ? 'Opening…' : 'Open DAT'}
             </button>
-            <button type="button" className="button ghost" onClick={handleSaveFiltered} disabled={!canSave}>
-              {saving ? 'Saving…' : 'Save Filtered DAT'}
-            </button>
+            <div className="split-button" ref={saveMenuRef}>
+              <button
+                type="button"
+                className={`button${hasExtraDownloads ? ' split-button__main' : ''}`}
+                onClick={handleSaveFiltered}
+                disabled={!canSave || extraDownloading}
+              >
+                {saving ? 'Saving…' : 'Save Filtered DAT'}
+              </button>
+              {hasExtraDownloads && (
+                <>
+                  <button
+                    type="button"
+                    className="button split-button__chevron"
+                    aria-haspopup="menu"
+                    aria-expanded={saveMenuOpen}
+                    aria-label="More downloads"
+                    disabled={datBusy || extraDownloading || systemsLoading || !selectedSlug}
+                    onClick={() => setSaveMenuOpen((open) => !open)}
+                  >
+                    <svg viewBox="0 0 12 12" aria-hidden="true">
+                      <path
+                        d="M2.5 4.25 6 7.75 9.5 4.25"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  {saveMenuOpen && (
+                    <div className="split-button__menu" role="menu">
+                      {selectedSystem?.hasCues && (
+                        <button
+                          type="button"
+                          className="split-button__item"
+                          role="menuitem"
+                          disabled={extraDownloading || downloading}
+                          onClick={() => void handleDownloadExtra('cues')}
+                        >
+                          Download Cuesheets
+                        </button>
+                      )}
+                      {selectedSystem?.hasSbi && (
+                        <button
+                          type="button"
+                          className="split-button__item"
+                          role="menuitem"
+                          disabled={extraDownloading || downloading}
+                          onClick={() => void handleDownloadExtra('sbi')}
+                        >
+                          Download SBI
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -859,22 +1080,30 @@ function App() {
               </p>
             </div>
             <div className="panel-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={handleRefreshSystems}
-                disabled={systemsRefreshing || systemsLoading}
-              >
-                {systemsRefreshing ? 'Refreshing…' : 'Refresh Systems'}
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={handleCheckUpdates}
-                disabled={updatesChecking || systemsLoading}
-              >
-                {updatesChecking ? 'Checking…' : 'Check Updates'}
-              </button>
+              <DatVariantToggle
+                compact
+                value={selectedDatVariant}
+                onChange={(variant) => void handleDatVariantChange(variant)}
+                disabled={!selectedSlug || systemsLoading || datBusy}
+              />
+              <div className="panel-actions__stack">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={handleRefreshSystems}
+                  disabled={systemsRefreshing || systemsLoading || datBusy}
+                >
+                  {systemsRefreshing ? 'Refreshing…' : 'Refresh Systems'}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={handleCheckUpdates}
+                  disabled={updatesChecking || systemsLoading || datBusy}
+                >
+                  {updatesChecking ? 'Checking…' : 'Check Updates'}
+                </button>
+              </div>
             </div>
           </header>
 
@@ -1017,10 +1246,10 @@ function App() {
               <header className="panel-header">
                 <h3>Region Filters</h3>
                 <div className="panel-actions">
-                  <button type="button" className="button secondary" onClick={handleSelectAll}>
+                  <button type="button" className="button secondary" onClick={handleSelectAll} disabled={datBusy}>
                     Select All
                   </button>
-                  <button type="button" className="button secondary" onClick={handleClearSelection}>
+                  <button type="button" className="button secondary" onClick={handleClearSelection} disabled={datBusy}>
                     Clear
                   </button>
                 </div>
@@ -1030,11 +1259,12 @@ function App() {
                 {loadedDat.regions.map((region) => {
                   const checked = selectedRegions.includes(region);
                   return (
-                    <label key={region} className={`region-item ${checked ? 'selected' : ''}`}>
+                    <label key={region} className={`region-item ${checked ? 'selected' : ''}${datBusy ? ' is-disabled' : ''}`}>
                       <input
                         type="checkbox"
                         value={region}
                         checked={checked}
+                        disabled={datBusy}
                         onChange={() => handleToggleRegion(region)}
                       />
                       <span>{region}</span>

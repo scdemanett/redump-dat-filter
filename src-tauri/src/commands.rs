@@ -3,9 +3,9 @@ use crate::dat_parser::{filter_dat_by_regions, parse_dat, ParsedDat};
 use crate::redump_download;
 use crate::settings;
 use crate::types::{
-  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DownloadSystemResponse,
-  FilterPreviewResponse, GetSettingsResponse, ListSystemsResponse, LoadFromPathResponse,
-  LoadedDatPayload, OpenDatResponse, SaveFilterResponse,
+  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DatVariant,
+  DownloadExtraResponse, DownloadSystemResponse, FilterPreviewResponse, GetSettingsResponse,
+  ListSystemsResponse, LoadFromPathResponse, LoadedDatPayload, OpenDatResponse, SaveFilterResponse,
 };
 use std::path::Path;
 use std::sync::Mutex;
@@ -412,6 +412,7 @@ pub async fn download_system(
   state: State<'_, LoadedDatState>,
   slug: String,
   force: Option<bool>,
+  serial_version: Option<bool>,
 ) -> Result<DownloadSystemResponse, String> {
   if slug.trim().is_empty() {
     return Ok(DownloadSystemResponse {
@@ -422,8 +423,15 @@ pub async fn download_system(
     });
   }
 
+  let variant = serial_version
+    .map(DatVariant::from_serial_flag)
+    .unwrap_or_else(|| {
+      let (loaded, _) = settings::load_settings(&app);
+      settings::resolve_dat_variant(&loaded, slug.trim())
+    });
+
   Ok(
-    match redump_download::download_or_load_system(&app, &slug, force.unwrap_or(false)).await {
+    match redump_download::download_or_load_system(&app, &slug, force.unwrap_or(false), variant).await {
       Ok(downloaded) => match parse_dat(&downloaded.xml) {
         Ok(parsed) => {
           let loaded = LoadedDat {
@@ -465,6 +473,98 @@ pub async fn download_system(
       },
     },
   )
+}
+
+#[tauri::command]
+pub async fn download_extra(
+  app: AppHandle,
+  slug: String,
+  kind: String,
+) -> Result<DownloadExtraResponse, String> {
+  let Some(extra_kind) = redump_download::ExtraKind::from_label(&kind) else {
+    return Ok(DownloadExtraResponse {
+      success: false,
+      canceled: None,
+      error: Some("Unknown extra download type.".into()),
+      saved_path: None,
+      filename: None,
+    });
+  };
+
+  if slug.trim().is_empty() {
+    return Ok(DownloadExtraResponse {
+      success: false,
+      canceled: None,
+      error: Some("No system selected.".into()),
+      saved_path: None,
+      filename: None,
+    });
+  }
+
+  let downloaded = match redump_download::download_extra(&app, &slug, extra_kind).await {
+    Ok(result) => result,
+    Err(error) => {
+      return Ok(DownloadExtraResponse {
+        success: false,
+        canceled: None,
+        error: Some(error),
+        saved_path: None,
+        filename: None,
+      });
+    }
+  };
+
+  let default_dir = settings::resolve_save_directory(&app, None);
+  let title = match extra_kind {
+    redump_download::ExtraKind::Cues => "Save cuesheets",
+    redump_download::ExtraKind::Sbi => "Save SBI archive",
+  };
+  let mut dialog = app
+    .dialog()
+    .file()
+    .set_title(title)
+    .add_filter("ZIP archive", &["zip"])
+    .set_file_name(&downloaded.filename);
+
+  if let Some(dir) = default_dir {
+    dialog = dialog.set_directory(dir);
+  }
+
+  let Some(FilePath::Path(path)) = dialog.blocking_save_file() else {
+    return Ok(DownloadExtraResponse {
+      success: false,
+      canceled: Some(true),
+      error: None,
+      saved_path: None,
+      filename: None,
+    });
+  };
+
+  let final_path = path.to_string_lossy().to_string();
+  if let Err(error) = std::fs::write(&final_path, &downloaded.bytes) {
+    return Ok(DownloadExtraResponse {
+      success: false,
+      canceled: None,
+      error: Some(format!("Failed to save {}: {error}", downloaded.filename)),
+      saved_path: None,
+      filename: None,
+    });
+  }
+
+  settings::remember_save_directory(&app, &final_path);
+  let saved_name = Path::new(&final_path)
+    .file_name()
+    .and_then(|s| s.to_str())
+    .unwrap_or(&downloaded.filename)
+    .to_string();
+
+  Ok(DownloadExtraResponse {
+    success: true,
+    canceled: None,
+    error: None,
+    saved_path: Some(final_path),
+    filename: Some(saved_name),
+  })
 }
 
 #[tauri::command]
