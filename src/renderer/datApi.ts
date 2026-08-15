@@ -2,11 +2,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import type {
+  AppSettings,
   AppUpdateStatus,
   CheckUpdatesResponse,
   CurrentDatResponse,
   DownloadSystemResponse,
   FilterPreviewResponse,
+  GetSettingsResponse,
   ListSystemsResponse,
   LoadFromPathResponse,
   OpenDatResponse,
@@ -35,6 +37,10 @@ export const datAPI = {
       regions,
       targetPath: targetPath ?? null
     }),
+
+  getSettings: (): Promise<GetSettingsResponse> => invoke('get_settings'),
+
+  saveSettings: (settings: AppSettings): Promise<AppSettings> => invoke('save_settings', { settings }),
 
   listSystems: (): Promise<ListSystemsResponse> => invoke('list_systems'),
 

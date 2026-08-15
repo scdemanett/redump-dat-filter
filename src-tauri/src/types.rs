@@ -60,6 +60,45 @@ pub struct FilterPreviewResponse {
     pub filename: Option<String>,
 }
 
+fn default_regions() -> Vec<String> {
+    vec!["USA".into(), "World".into()]
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    #[serde(default = "default_regions")]
+    pub default_regions: Vec<String>,
+    #[serde(default)]
+    pub default_save_dir: Option<String>,
+    #[serde(default = "default_true")]
+    pub show_all_systems: bool,
+    #[serde(default)]
+    pub visible_system_slugs: Vec<String>,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            default_regions: default_regions(),
+            default_save_dir: None,
+            show_all_systems: true,
+            visible_system_slugs: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSettingsResponse {
+    pub settings: AppSettings,
+    pub from_file: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveFilterResponse {
@@ -178,7 +217,7 @@ pub enum AppUpdateStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::AppUpdateStatus;
+    use super::{AppSettings, AppUpdateStatus};
 
     #[test]
     fn app_update_status_serializes_camel_case_fields() {
@@ -200,5 +239,21 @@ mod tests {
         let json = serde_json::to_value(&available).unwrap();
         assert_eq!(json["latestVersion"], "1.9.1");
         assert_eq!(json["autoInstallSupported"], true);
+    }
+
+    #[test]
+    fn app_settings_serializes_camel_case_fields() {
+        let settings = AppSettings {
+            default_regions: vec!["USA".into(), "World".into()],
+            default_save_dir: Some(r"D:\DATs\filtered".into()),
+            show_all_systems: false,
+            visible_system_slugs: vec!["psx".into()],
+        };
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(json["defaultRegions"][0], "USA");
+        assert_eq!(json["defaultSaveDir"], r"D:\DATs\filtered");
+        assert_eq!(json["showAllSystems"], false);
+        assert_eq!(json["visibleSystemSlugs"][0], "psx");
+        assert!(json.get("default_save_dir").is_none());
     }
 }

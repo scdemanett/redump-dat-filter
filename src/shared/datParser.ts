@@ -65,6 +65,8 @@ const DEFAULT_REGION = 'Unknown';
 const CANONICAL_REGIONS = new Set<string>([...new Set(REGION_SYNONYMS.values())]);
 CANONICAL_REGIONS.add(DEFAULT_REGION);
 
+export const CANONICAL_REGION_LIST = Array.from(CANONICAL_REGIONS).sort((a, b) => a.localeCompare(b));
+
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',

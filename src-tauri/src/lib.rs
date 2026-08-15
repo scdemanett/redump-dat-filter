@@ -2,6 +2,7 @@ mod app_updater;
 mod commands;
 mod dat_parser;
 mod redump_download;
+mod settings;
 mod types;
 
 use commands::LoadedDatState;
@@ -63,6 +64,8 @@ pub fn run() {
       commands::get_current,
       commands::preview_filter,
       commands::save_filtered,
+      commands::get_settings,
+      commands::save_settings,
       commands::list_systems,
       commands::refresh_systems,
       commands::check_updates,

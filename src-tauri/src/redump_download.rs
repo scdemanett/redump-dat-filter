@@ -496,7 +496,7 @@ pub async fn check_downloaded_updates(
     app: &AppHandle,
     force: bool,
 ) -> Result<ResolvedSystemList, String> {
-    let slugs = list_downloaded_slugs(app);
+    let slugs = crate::settings::filter_downloaded_slugs(app, list_downloaded_slugs(app));
     let now = now_iso();
     let client = http_client(app)?;
     let app_clone = app.clone();

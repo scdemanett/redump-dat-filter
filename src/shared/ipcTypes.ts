@@ -78,6 +78,18 @@ export interface FilterPreviewResponse {
   filename?: string;
 }
 
+export interface AppSettings {
+  defaultRegions: string[];
+  defaultSaveDir: string | null;
+  showAllSystems: boolean;
+  visibleSystemSlugs: string[];
+}
+
+export interface GetSettingsResponse {
+  settings: AppSettings;
+  fromFile: boolean;
+}
+
 export interface SaveFilterRequest {
   regions: string[];
   targetPath?: string;

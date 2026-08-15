@@ -1,10 +1,11 @@
 use crate::app_updater::{self, UpdaterState};
 use crate::dat_parser::{filter_dat_by_regions, parse_dat, ParsedDat};
 use crate::redump_download;
+use crate::settings;
 use crate::types::{
-  AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DownloadSystemResponse,
-  FilterPreviewResponse, ListSystemsResponse, LoadFromPathResponse, LoadedDatPayload,
-  OpenDatResponse, SaveFilterResponse,
+  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DownloadSystemResponse,
+  FilterPreviewResponse, GetSettingsResponse, ListSystemsResponse, LoadFromPathResponse,
+  LoadedDatPayload, OpenDatResponse, SaveFilterResponse,
 };
 use std::path::Path;
 use std::sync::Mutex;
@@ -205,7 +206,7 @@ pub async fn save_filtered(
   regions: Vec<String>,
   target_path: Option<String>,
 ) -> Result<SaveFilterResponse, String> {
-  let (xml, filename, header, summary, default_dir) = {
+  let (xml, filename, header, summary, fallback_dir) = {
     let guard = state.0.lock().map_err(|e| e.to_string())?;
     let Some(loaded) = guard.as_ref() else {
       return Ok(SaveFilterResponse {
@@ -235,7 +236,7 @@ pub async fn save_filtered(
       }
     };
 
-    let default_dir = Path::new(&loaded.source_path)
+    let fallback_dir = Path::new(&loaded.source_path)
       .parent()
       .map(|p| p.to_path_buf());
 
@@ -244,9 +245,11 @@ pub async fn save_filtered(
       result.filename,
       result.header,
       result.summary,
-      default_dir,
+      fallback_dir,
     )
   };
+
+  let default_dir = settings::resolve_save_directory(&app, fallback_dir);
 
   let final_path = if let Some(path) = target_path.filter(|p| !p.trim().is_empty()) {
     path
@@ -294,6 +297,8 @@ pub async fn save_filtered(
     .unwrap_or(&filename)
     .to_string();
 
+  settings::remember_save_directory(&app, &final_path);
+
   Ok(SaveFilterResponse {
     success: true,
     canceled: None,
@@ -303,6 +308,17 @@ pub async fn save_filtered(
     summary: Some(summary),
     filename: Some(saved_name),
   })
+}
+
+#[tauri::command]
+pub async fn get_settings(app: AppHandle) -> GetSettingsResponse {
+  let (settings, from_file) = settings::load_settings(&app);
+  GetSettingsResponse { settings, from_file }
+}
+
+#[tauri::command]
+pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<AppSettings, String> {
+  crate::settings::save_settings(&app, &settings)
 }
 
 #[tauri::command]
@@ -361,10 +377,14 @@ pub async fn refresh_systems(app: AppHandle) -> ListSystemsResponse {
 pub async fn check_updates(app: AppHandle, force: Option<bool>) -> CheckUpdatesResponse {
   match redump_download::check_downloaded_updates(&app, force.unwrap_or(false)).await {
     Ok(result) => {
+      let (settings, _) = settings::load_settings(&app);
       let update_count = result
         .systems
         .iter()
-        .filter(|s| s.update_available.unwrap_or(false))
+        .filter(|system| {
+          system.update_available.unwrap_or(false)
+            && settings::allows_system_slug(&settings, &system.slug)
+        })
         .count();
       CheckUpdatesResponse {
         success: true,

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 import type {
+  AppSettings,
   AppUpdateStatus,
   DatHeader,
   FilterSummary,
@@ -12,11 +13,11 @@ import type {
 } from '../shared';
 import appIconUrl from '../../build/icon.svg';
 import { datAPI } from './datApi';
+import { DEFAULT_APP_SETTINGS, filterVisibleSystems, loadAppSettings } from './settings';
+import { SettingsModal, type ThemeMode } from './SettingsModal';
+import { ContextCopyMenu } from './ContextCopyMenu';
 
 const numberFormatter = new Intl.NumberFormat();
-const preferredDefaultRegions = ['USA', 'World'];
-const SELECTED_REGIONS_STORAGE_KEY = 'selectedRegions';
-type ThemeMode = 'dark' | 'light';
 
 function readStoredTheme(): ThemeMode {
   try {
@@ -30,32 +31,11 @@ function readStoredTheme(): ThemeMode {
   return 'dark';
 }
 
-function readStoredRegions(): string[] | null {
-  try {
-    const raw = localStorage.getItem(SELECTED_REGIONS_STORAGE_KEY);
-    if (raw === null) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredRegions(regions: string[]): void {
-  try {
-    localStorage.setItem(SELECTED_REGIONS_STORAGE_KEY, JSON.stringify(regions));
-  } catch {
-    // ignore storage access issues
-  }
-}
-
 function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loadedDat, setLoadedDat] = useState<LoadedDatPayload | null>(null);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [previewHeader, setPreviewHeader] = useState<DatHeader | null>(null);
@@ -88,6 +68,9 @@ function App() {
   const previewRequestId = useRef(0);
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
   const systemSearchRef = useRef<HTMLInputElement | null>(null);
+  const settingsRef = useRef(settings);
+  const themeBeforeSettings = useRef(theme);
+  settingsRef.current = settings;
 
   const hydrateLoadedDat = useCallback(
     (
@@ -96,7 +79,7 @@ function App() {
       options?: { systems?: RedumpSystem[]; preferSlug?: string }
     ) => {
       setLoadedDat(data);
-      setSelectedRegions(resolveRegionSelection(data.regions));
+      setSelectedRegions(resolveRegionSelection(data.regions, settingsRef.current.defaultRegions));
       setPreviewHeader(null);
       setPreviewSummary(null);
       setPreviewFilename(null);
@@ -133,12 +116,31 @@ function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try {
-      localStorage.setItem('theme', theme);
-    } catch {
-      // ignore storage access issues
-    }
   }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadAppSettings()
+      .then((loaded) => {
+        if (cancelled) {
+          return;
+        }
+        settingsRef.current = loaded;
+        setSettings(loaded);
+        setSettingsReady(true);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) {
+          setSettingsReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!loadedDat || systems.length === 0 || selectedSlug) {
@@ -151,13 +153,10 @@ function App() {
   }, [loadedDat, systems, selectedSlug]);
 
   useEffect(() => {
-    if (!loadedDat) {
+    if (!settingsReady) {
       return;
     }
-    writeStoredRegions(selectedRegions);
-  }, [loadedDat, selectedRegions]);
 
-  useEffect(() => {
     datAPI
       .getCurrentDat()
       .then((response) => {
@@ -169,7 +168,7 @@ function App() {
         console.error(err);
         setError(`Failed to restore previous session: ${extractMessage(err)}`);
       });
-  }, [hydrateLoadedDat]);
+  }, [hydrateLoadedDat, settingsReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -446,16 +445,21 @@ function App() {
       });
   }, [loadedDat, selectedRegions]);
 
+  const visibleSystems = useMemo(
+    () => filterVisibleSystems(systems, settings),
+    [settings, systems]
+  );
+
   const filteredSystems = useMemo(() => {
     const query = systemQuery.trim().toLowerCase();
     if (!query) {
-      return systems;
+      return visibleSystems;
     }
-    return systems.filter(
+    return visibleSystems.filter(
       (system) =>
         system.name.toLowerCase().includes(query) || system.slug.toLowerCase().includes(query)
     );
-  }, [systemQuery, systems]);
+  }, [systemQuery, visibleSystems]);
 
   const selectedSystem = useMemo(
     () => systems.find((system) => system.slug === selectedSlug) ?? null,
@@ -463,8 +467,8 @@ function App() {
   );
 
   const updateCount = useMemo(
-    () => systems.filter((system) => system.updateAvailable).length,
-    [systems]
+    () => visibleSystems.filter((system) => system.updateAvailable).length,
+    [visibleSystems]
   );
 
   const handleOpenDat = useCallback(async () => {
@@ -609,6 +613,14 @@ function App() {
 
       const destination = response.filename ?? response.savedPath ?? 'filtered.dat';
       setInfo(`Filtered DAT saved as ${destination}`);
+
+      try {
+        const latest = await datAPI.getSettings();
+        settingsRef.current = latest.settings;
+        setSettings(latest.settings);
+      } catch {
+        // keep in-memory settings if refresh fails
+      }
     } catch (err) {
       setError(`Failed to save filtered DAT file: ${extractMessage(err)}`);
     } finally {
@@ -668,6 +680,46 @@ function App() {
   const canDismissAppUpdateBanner =
     appUpdateStatus.state !== 'checking' && appUpdateStatus.state !== 'downloading';
 
+  const persistTheme = useCallback((nextTheme: ThemeMode) => {
+    try {
+      localStorage.setItem('theme', nextTheme);
+    } catch {
+      // ignore storage access issues
+    }
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    themeBeforeSettings.current = theme;
+    setSettingsOpen(true);
+  }, [theme]);
+
+  const handleCloseSettings = useCallback(() => {
+    setTheme(themeBeforeSettings.current);
+    setSettingsOpen(false);
+  }, []);
+
+  const handleSaveSettings = useCallback(
+    async (next: AppSettings) => {
+      const saved = await datAPI.saveSettings(next);
+      settingsRef.current = saved;
+      setSettings(saved);
+      persistTheme(theme);
+      themeBeforeSettings.current = theme;
+      if (loadedDat) {
+        setSelectedRegions(resolveRegionSelection(loadedDat.regions, saved.defaultRegions));
+      }
+      if (
+        !saved.showAllSystems &&
+        selectedSlug &&
+        !saved.visibleSystemSlugs.includes(selectedSlug)
+      ) {
+        setSelectedSlug('');
+      }
+      setSettingsOpen(false);
+    },
+    [loadedDat, persistTheme, selectedSlug, theme]
+  );
+
   return (
     <main className={`app-shell ${isDragActive ? 'drag-active' : ''}`}>
       <div className="app-container">
@@ -696,42 +748,32 @@ function App() {
             </div>
           </div>
           <div className="header-actions">
-            <div className="theme-toggle" role="group" aria-label="Color theme">
-              <button
-                type="button"
-                className={`theme-toggle__option ${theme === 'light' ? 'is-active' : ''}`}
-                onClick={() => setTheme('light')}
-                aria-pressed={theme === 'light'}
-                title="Light theme"
-              >
-                <svg className="theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4" fill="currentColor" />
-                  <path
-                    d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span>Light</span>
-              </button>
-              <button
-                type="button"
-                className={`theme-toggle__option ${theme === 'dark' ? 'is-active' : ''}`}
-                onClick={() => setTheme('dark')}
-                aria-pressed={theme === 'dark'}
-                title="Dark theme"
-              >
-                <svg className="theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 7 7 0 1 0 20.5 14.2Z"
-                    fill="currentColor"
-                  />
-                </svg>
-                <span>Dark</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={handleOpenSettings}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
             <button type="button" className="button" onClick={handleOpenDat} disabled={opening || downloading}>
               {opening ? 'Opening…' : 'Open DAT'}
             </button>
@@ -805,7 +847,11 @@ function App() {
               <p className="panel-description redump-meta">
                 {systemsLoading
                   ? 'Loading system list…'
-                  : `${numberFormatter.format(systems.length)} systems · source: ${systemsSource ?? '—'}${
+                  : `${numberFormatter.format(visibleSystems.length)}${
+                      settings.showAllSystems
+                        ? ''
+                        : ` of ${numberFormatter.format(systems.length)}`
+                    } systems · source: ${systemsSource ?? '—'}${
                       systemsFetchedAt ? ` · ${formatFetchedAt(systemsFetchedAt)}` : ''
                     }`}
                 {updateCount > 0 ? ` · ${updateCount} update${updateCount === 1 ? '' : 's'} available` : ''}
@@ -841,7 +887,7 @@ function App() {
                   className="system-combobox__trigger"
                   aria-haspopup="listbox"
                   aria-expanded={systemPickerOpen}
-                  disabled={systemsLoading || systems.length === 0}
+                  disabled={systemsLoading || visibleSystems.length === 0}
                   onClick={() => {
                     setSystemPickerOpen((open) => {
                       const next = !open;
@@ -953,7 +999,7 @@ function App() {
         {loadedDat ? (
           <>
             <section className="panel">
-              <header className="panel-header">
+              <header className="panel-header panel-header--stacked">
                 <h2>{loadedDat.header.name}</h2>
                 <div className="panel-meta">
                   <span>Source: {loadedDat.originalFilename}</span>
@@ -1060,6 +1106,18 @@ function App() {
           </div>
         </div>
       )}
+      {settingsOpen && (
+        <SettingsModal
+          settings={settings}
+          systems={systems}
+          systemsLoading={systemsLoading}
+          theme={theme}
+          onThemeChange={setTheme}
+          onSave={handleSaveSettings}
+          onClose={handleCloseSettings}
+        />
+      )}
+      <ContextCopyMenu />
     </main>
   );
 }
@@ -1149,21 +1207,12 @@ function extractMessage(error: unknown): string {
   return String(error);
 }
 
-function resolveRegionSelection(availableRegions: string[]): string[] {
+function resolveRegionSelection(availableRegions: string[], defaultRegions: string[]): string[] {
   const available = new Set(availableRegions);
-  const stored = readStoredRegions();
-
-  if (stored !== null) {
-    if (stored.length === 0) {
-      return [];
-    }
-    const matched = stored.filter((region) => available.has(region));
-    if (matched.length > 0) {
-      return matched;
-    }
+  if (defaultRegions.length === 0) {
+    return [];
   }
-
-  return preferredDefaultRegions.filter((region) => available.has(region));
+  return defaultRegions.filter((region) => available.has(region));
 }
 
 export default App;

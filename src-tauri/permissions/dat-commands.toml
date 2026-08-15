@@ -8,6 +8,8 @@ commands.allow = [
   "get_current",
   "preview_filter",
   "save_filtered",
+  "get_settings",
+  "save_settings",
   "list_systems",
   "refresh_systems",
   "check_updates",
