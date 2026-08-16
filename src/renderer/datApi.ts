@@ -9,6 +9,7 @@ import type {
   DownloadSystemResponse,
   ExtraDownloadKind,
   DownloadExtraResponse,
+  DatLoadProgress,
   FilterPreviewResponse,
   GetSettingsResponse,
   ListSystemsResponse,
@@ -75,6 +76,18 @@ export const datAPI = {
   onAppUpdateStatus: (callback: (status: AppUpdateStatus) => void): (() => void) => {
     let unlisten: UnlistenFn | undefined;
     void listen<AppUpdateStatus>('app:update-status', (event) => {
+      callback(event.payload);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  },
+
+  onDatLoadProgress: (callback: (progress: DatLoadProgress) => void): (() => void) => {
+    let unlisten: UnlistenFn | undefined;
+    void listen<DatLoadProgress>('dat:load-progress', (event) => {
       callback(event.payload);
     }).then((fn) => {
       unlisten = fn;

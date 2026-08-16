@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.0] - 2026-08-15
+
+### Added
+
+- Settings window for theme, default save folder, visible systems, and the default DAT variant.
+- DAT vs DAT + Serial/Version preference (global default and per-system), with separate cache paths and Redump URLs.
+- Cuesheet and SBI ZIP downloads from the Save Filtered DAT menu, using Redump’s original filenames.
+- Load progress while checking, downloading, extracting, reading, and parsing DATs (including Open DAT and extras).
+
+### Changed
+
+- DAT parser scans game blocks linearly instead of compiling regexes per game, so cached and local loads parse much faster.
+
+### Fixed
+
+- Opening a local serial/version DAT no longer snaps the Download panel toggle back when the system list refreshes.
+
 ## [2.0.2] - 2026-08-13
 
 ### Fixed
@@ -125,6 +142,7 @@ First stable release of Redump DAT Filter.
 - Add live Redump DAT download with cached system picker.
 - Polish desktop shell with Redump theming and window state persistence.
 
+[2.1.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.1.0
 [2.0.2]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.2
 [2.0.1]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.1
 [2.0.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.0

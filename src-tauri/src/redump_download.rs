@@ -5,7 +5,7 @@
 //
 // Port of electron/redumpDownload.ts — Redump system list + DAT cache/download.
 
-use crate::types::{DatVariant, RedumpSystem, RedumpSystemListSource};
+use crate::types::{DatLoadPhase, DatLoadProgress, DatVariant, RedumpSystem, RedumpSystemListSource};
 use chrono::{SecondsFormat, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -14,8 +14,8 @@ use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager};
 use zip::ZipArchive;
 
 const REDUMP_BASE: &str = "https://redump.info";
@@ -176,6 +176,102 @@ pub fn extra_url(slug: &str, kind: ExtraKind) -> String {
         ExtraKind::Cues => format!("{REDUMP_BASE}/cues/{encoded}"),
         ExtraKind::Sbi => format!("{REDUMP_BASE}/sbi/{encoded}"),
     }
+}
+
+pub fn emit_dat_progress(
+    app: &AppHandle,
+    phase: DatLoadPhase,
+    percent: Option<u8>,
+    message: impl Into<String>,
+) {
+    let _ = app.emit(
+        "dat:load-progress",
+        DatLoadProgress {
+            phase,
+            percent,
+            message: message.into(),
+        },
+    );
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes >= 1_000_000 {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    } else if bytes >= 1_000 {
+        format!("{:.0} KB", bytes as f64 / 1_000.0)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+async fn read_body_with_progress(
+    app: &AppHandle,
+    mut response: reqwest::Response,
+    content_length: Option<u64>,
+    label: &str,
+) -> Result<Vec<u8>, String> {
+    emit_dat_progress(
+        app,
+        DatLoadPhase::Downloading,
+        content_length.map(|_| 0),
+        format!("Downloading {label}…"),
+    );
+
+    let total = content_length.unwrap_or(0);
+    let mut buffer = if total > 0 {
+        Vec::with_capacity(total as usize)
+    } else {
+        Vec::new()
+    };
+    let mut downloaded = 0u64;
+    let mut last_emit = Instant::now()
+        .checked_sub(Duration::from_secs(1))
+        .unwrap_or_else(Instant::now);
+    let mut last_percent: u8 = 255;
+
+    loop {
+        let chunk = response
+            .chunk()
+            .await
+            .map_err(|e| format!("Failed to read {label} download: {e}"))?;
+        let Some(chunk) = chunk else {
+            break;
+        };
+        downloaded += chunk.len() as u64;
+        buffer.extend_from_slice(&chunk);
+
+        let percent = if total > 0 {
+            Some((((downloaded.min(total)) * 100) / total) as u8)
+        } else {
+            None
+        };
+        let now = Instant::now();
+        let current_percent = percent.unwrap_or(0);
+        let should_emit = percent == Some(100)
+            || now.duration_since(last_emit) >= Duration::from_millis(100)
+            || current_percent.abs_diff(last_percent) >= 2;
+        if should_emit {
+            let message = if let Some(value) = percent {
+                format!("Downloading {label}… {value}%")
+            } else {
+                format!("Downloading {label}… {}", format_bytes(downloaded))
+            };
+            emit_dat_progress(app, DatLoadPhase::Downloading, percent, message);
+            last_emit = now;
+            last_percent = current_percent;
+        }
+    }
+
+    if total > 0 {
+        emit_dat_progress(
+            app,
+            DatLoadPhase::Downloading,
+            Some(100),
+            format!("Downloading {label}… 100%"),
+        );
+    }
+
+    Ok(buffer)
 }
 
 fn ensure_dir(dir: &Path) -> Result<(), String> {
@@ -725,6 +821,13 @@ async fn download_and_cache_dat(
     slug: &str,
     variant: DatVariant,
 ) -> Result<DownloadSystemResult, String> {
+    emit_dat_progress(
+        app,
+        DatLoadPhase::Downloading,
+        None,
+        "Connecting to Redump…",
+    );
+
     let client = http_client(app)?;
     let response = fetch_with_timeout(
         &client,
@@ -758,10 +861,7 @@ async fn download_and_cache_dat(
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok());
 
-    let buffer = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read DAT download body: {e}"))?;
+    let buffer = read_body_with_progress(app, response, content_length, "DAT").await?;
 
     let looks_like_zip = (buffer.len() >= 4 && buffer[0] == 0x50 && buffer[1] == 0x4b)
         || disposition
@@ -770,6 +870,12 @@ async fn download_and_cache_dat(
         || content_type.contains("zip");
 
     let (xml, dat_filename) = if looks_like_zip {
+        emit_dat_progress(
+            app,
+            DatLoadPhase::Extracting,
+            None,
+            "Extracting DAT from archive…",
+        );
         let (xml, extracted_name) = extract_dat_from_zip(&buffer)?;
         let dat_filename = disposition
             .as_deref()
@@ -829,11 +935,23 @@ pub async fn download_or_load_system(
     if !force {
         if let Some(ref meta) = meta {
             if !meta.filename.is_empty() {
+                emit_dat_progress(
+                    app,
+                    DatLoadPhase::Checking,
+                    None,
+                    "Checking whether the cached DAT is current…",
+                );
                 let client = http_client(app)?;
                 match head_dat_info(&client, normalized, variant).await {
                     Ok((remote_filename, content_length)) => {
                         if let Some(ref remote) = remote_filename {
                             if remote == &meta.filename {
+                                emit_dat_progress(
+                                    app,
+                                    DatLoadPhase::Reading,
+                                    None,
+                                    "Reading cached DAT…",
+                                );
                                 let xml = fs::read_to_string(&cached_path).map_err(|e| {
                                     format!("Failed to read cached DAT {}: {e}", cached_path.display())
                                 })?;
@@ -857,6 +975,12 @@ pub async fn download_or_load_system(
                     Err(error) => {
                         log::warn!(
                             "HEAD check failed for {normalized}; trying cached DAT: {error}"
+                        );
+                        emit_dat_progress(
+                            app,
+                            DatLoadPhase::Reading,
+                            None,
+                            "Reading cached DAT…",
                         );
                         if let Ok(xml) = fs::read_to_string(&cached_path) {
                             return Ok(DownloadSystemResult {
@@ -890,6 +1014,13 @@ pub async fn download_extra(
         return Err("No system slug provided.".to_string());
     }
 
+    emit_dat_progress(
+        app,
+        DatLoadPhase::Downloading,
+        None,
+        "Connecting to Redump…",
+    );
+
     let client = http_client(app)?;
     let response = fetch_with_timeout(
         &client,
@@ -917,14 +1048,16 @@ pub async fn download_extra(
         ExtraKind::Cues => format!("{normalized}-cues.zip"),
         ExtraKind::Sbi => format!("{normalized}-sbi.zip"),
     });
+    let content_length = response
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok());
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read {} download body: {e}", kind.label()))?;
+    let bytes = read_body_with_progress(app, response, content_length, kind.label()).await?;
 
     Ok(DownloadExtraResult {
-        bytes: bytes.to_vec(),
+        bytes,
         filename,
     })
 }

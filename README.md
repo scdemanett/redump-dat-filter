@@ -5,9 +5,11 @@ Cross-platform Tauri desktop application for trimming Redump.org DAT collections
 ## Features
 
 - Download the latest Redump DAT for a system directly from [redump.info](https://redump.info/downloads) (no manual browser download required).
+- Choose standard **DAT** or **DAT + Serial/Version** per system (cached separately).
+- Download cuesheets and SBI archives from the Save menu when Redump provides them.
 - Live system list with disk cache and manual refresh so new Redump systems appear without an app update.
 - Cheap update badges for previously downloaded DATs via HTTP HEAD checks.
-- Parse large Redump DAT (XML) files entirely in the Rust backend.
+- Parse large Redump DAT (XML) files entirely in the Rust backend, with download/parse progress in the UI.
 - Automatically detect available regions and offer quick-select checkboxes.
 - Live preview of filtered totals, renamed header/description, and suggested output filename.
 - Exports a fully formatted DAT with updated `<header>` values and reduced `<game>` entries.
@@ -42,14 +44,14 @@ The development script starts Vite for the renderer and launches the Tauri windo
 ### Download from Redump
 
 1. In **Download from Redump**, search/select a system. Selection alone does not download.
-2. Click **Download & load** (or **Load** / **Download update** when a cached DAT exists).
+2. Optionally switch **DAT** / **DAT + Serial/Version**, then click **Download & Load** (or **Load** / **Download update** when a cached DAT exists). Progress shows checking, download percent, extract, and parse.
 3. The app HEADs the Redump DAT URL when a cache exists; if the `Content-Disposition` filename is unchanged it reuses the cached file. Otherwise it downloads the ZIP, unzips the `.dat`, and loads it into the filter UI.
 4. Use **Refresh systems** to re-scrape the Redump downloads list. Use **Check updates** / **Force refresh** as needed.
 
 Caches live under the Tauri app data directory (not next to the binary), e.g. `%APPDATA%\com.redump.filter\cache\` on Windows:
 
 - `redump-systems.json` — system list (refreshed in the background when older than 7 days)
-- `dats/{slug}/` — cached DAT + `meta.json` for HEAD freshness / update badges
+- `dats/{slug}/` — cached standard DAT + `meta.json`; serial/version DATs live in `dats/{slug}/serial/`
 
 On first launch after upgrading from the Electron 1.x app, an existing Electron cache under `%APPDATA%\redump-dat-filter\cache\` is copied automatically when the Tauri cache is empty.
 

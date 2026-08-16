@@ -6,6 +6,7 @@ import type {
   AppSettings,
   AppUpdateStatus,
   DatHeader,
+  DatLoadProgress,
   ExtraDownloadKind,
   FilterSummary,
   LoadedDatPayload,
@@ -26,6 +27,27 @@ import { SettingsModal, type ThemeMode } from './SettingsModal';
 import { ContextCopyMenu } from './ContextCopyMenu';
 
 const numberFormatter = new Intl.NumberFormat();
+
+function busyActionLabel(progress: DatLoadProgress | null, fallback: string): string {
+  if (!progress) {
+    return fallback;
+  }
+
+  switch (progress.phase) {
+    case 'checking':
+      return 'Checking…';
+    case 'downloading':
+      return progress.percent != null ? `Downloading ${progress.percent}%…` : 'Downloading…';
+    case 'extracting':
+      return 'Extracting…';
+    case 'reading':
+      return 'Reading…';
+    case 'parsing':
+      return 'Parsing…';
+    default:
+      return fallback;
+  }
+}
 
 function readStoredTheme(): ThemeMode {
   try {
@@ -68,6 +90,7 @@ function App() {
   const [systemPickerOpen, setSystemPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [extraDownloading, setExtraDownloading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState<DatLoadProgress | null>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
 
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -288,10 +311,16 @@ function App() {
         }
       }
     });
+    const unsubscribeLoadProgress = datAPI.onDatLoadProgress((progress) => {
+      if (!cancelled) {
+        setLoadProgress(progress);
+      }
+    });
 
     return () => {
       cancelled = true;
       unsubscribe();
+      unsubscribeLoadProgress();
     };
   }, []);
 
@@ -373,6 +402,7 @@ function App() {
         }
 
         setOpening(true);
+        setLoadProgress(null);
         setSaving(false);
         setInfo(null);
         setError(null);
@@ -393,6 +423,7 @@ function App() {
           })
           .finally(() => {
             setOpening(false);
+            setLoadProgress(null);
           });
       })
       .then((fn) => {
@@ -548,6 +579,7 @@ function App() {
 
   const handleOpenDat = useCallback(async () => {
     setOpening(true);
+    setLoadProgress(null);
     setSaving(false);
     setInfo(null);
     setError(null);
@@ -570,6 +602,7 @@ function App() {
       setError(`Failed to open DAT file: ${extractMessage(err)}`);
     } finally {
       setOpening(false);
+      setLoadProgress(null);
     }
   }, [hydrateLoadedDat]);
 
@@ -623,6 +656,7 @@ function App() {
       }
 
       setDownloading(true);
+      setLoadProgress(null);
       setError(null);
       setInfo(null);
 
@@ -650,6 +684,7 @@ function App() {
         setError(`Failed to download Redump DAT: ${extractMessage(err)}`);
       } finally {
         setDownloading(false);
+        setLoadProgress(null);
       }
     },
     [applySystemsResponse, hydrateLoadedDat, selectedSlug]
@@ -750,6 +785,7 @@ function App() {
 
       setSaveMenuOpen(false);
       setExtraDownloading(true);
+      setLoadProgress(null);
       setError(null);
       setInfo(null);
 
@@ -778,6 +814,7 @@ function App() {
         setError(`Failed to download ${kind === 'cues' ? 'cuesheets' : 'SBI archive'}: ${extractMessage(err)}`);
       } finally {
         setExtraDownloading(false);
+        setLoadProgress(null);
       }
     },
     [selectedSlug]
@@ -939,7 +976,7 @@ function App() {
               </svg>
             </button>
             <button type="button" className="button ghost" onClick={handleOpenDat} disabled={opening || downloading}>
-              {opening ? 'Opening…' : 'Open DAT'}
+              {opening ? busyActionLabel(loadProgress, 'Opening…') : 'Open DAT'}
             </button>
             <div className="split-button" ref={saveMenuRef}>
               <button
@@ -1058,6 +1095,25 @@ function App() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {(opening || downloading || extraDownloading) && (
+          <div className="dat-load-progress" role="status" aria-live="polite">
+            <div className="dat-load-progress__label">
+              {loadProgress?.message
+                ?? (opening
+                  ? 'Opening DAT…'
+                  : extraDownloading
+                    ? 'Downloading extra files…'
+                    : 'Working…')}
+            </div>
+            <div className="dat-load-progress__track">
+              <div
+                className={`dat-load-progress__bar${loadProgress?.percent == null ? ' is-indeterminate' : ''}`}
+                style={loadProgress?.percent != null ? { width: `${loadProgress.percent}%` } : undefined}
+              />
+            </div>
           </div>
         )}
 
@@ -1200,7 +1256,7 @@ function App() {
                 onClick={() => handleDownloadSystem(false)}
                 disabled={!selectedSlug || downloading || opening}
               >
-                {downloading ? 'Working…' : downloadLabel}
+                {downloading ? busyActionLabel(loadProgress, 'Working…') : downloadLabel}
               </button>
               <button
                 type="button"

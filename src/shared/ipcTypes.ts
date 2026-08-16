@@ -158,6 +158,14 @@ export interface DownloadSystemResponse {
 
 export type ExtraDownloadKind = 'cues' | 'sbi';
 
+export type DatLoadPhase = 'checking' | 'downloading' | 'extracting' | 'reading' | 'parsing';
+
+export interface DatLoadProgress {
+  phase: DatLoadPhase;
+  percent?: number;
+  message: string;
+}
+
 export interface DownloadExtraResponse {
   success: boolean;
   canceled?: boolean;

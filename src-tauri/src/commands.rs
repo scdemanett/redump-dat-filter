@@ -3,7 +3,7 @@ use crate::dat_parser::{filter_dat_by_regions, parse_dat, ParsedDat};
 use crate::redump_download;
 use crate::settings;
 use crate::types::{
-  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DatVariant,
+  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DatLoadPhase, DatVariant,
   DownloadExtraResponse, DownloadSystemResponse, FilterPreviewResponse, GetSettingsResponse,
   ListSystemsResponse, LoadFromPathResponse, LoadedDatPayload, OpenDatResponse, SaveFilterResponse,
 };
@@ -33,9 +33,18 @@ fn build_loaded_payload(state: &LoadedDat) -> LoadedDatPayload {
   }
 }
 
-fn load_state_from_file(file_path: &str) -> Result<LoadedDat, String> {
+async fn load_state_from_file(app: &AppHandle, file_path: &str) -> Result<LoadedDat, String> {
+  redump_download::emit_dat_progress(
+    app,
+    DatLoadPhase::Reading,
+    None,
+    "Reading DAT file…",
+  );
+  tokio::task::yield_now().await;
   let xml = std::fs::read_to_string(file_path)
     .map_err(|e| format!("Failed to read DAT file: {e}"))?;
+  redump_download::emit_dat_progress(app, DatLoadPhase::Parsing, None, "Parsing DAT…");
+  tokio::task::yield_now().await;
   let parsed = parse_dat(&xml)?;
   let original_filename = Path::new(file_path)
     .file_name()
@@ -75,7 +84,7 @@ pub async fn open_dat(
   };
 
   let path_str = path.to_string_lossy().to_string();
-  match load_state_from_file(&path_str) {
+  match load_state_from_file(&app, &path_str).await {
     Ok(loaded) => {
       let data = build_loaded_payload(&loaded);
       *state.0.lock().map_err(|e| e.to_string())? = Some(loaded);
@@ -94,42 +103,43 @@ pub async fn open_dat(
 }
 
 #[tauri::command]
-pub fn load_from_path(
+pub async fn load_from_path(
+  app: AppHandle,
   state: State<'_, LoadedDatState>,
   file_path: String,
-) -> LoadFromPathResponse {
+) -> Result<LoadFromPathResponse, String> {
   if file_path.trim().is_empty() {
-    return LoadFromPathResponse {
+    return Ok(LoadFromPathResponse {
       success: false,
       error: Some("No file path provided.".into()),
       data: None,
-    };
+    });
   }
 
-  match load_state_from_file(&file_path) {
+  match load_state_from_file(&app, &file_path).await {
     Ok(loaded) => {
       let data = build_loaded_payload(&loaded);
       match state.0.lock() {
         Ok(mut guard) => {
           *guard = Some(loaded);
-          LoadFromPathResponse {
+          Ok(LoadFromPathResponse {
             success: true,
             error: None,
             data: Some(data),
-          }
+          })
         }
-        Err(e) => LoadFromPathResponse {
+        Err(e) => Ok(LoadFromPathResponse {
           success: false,
           error: Some(e.to_string()),
           data: None,
-        },
+        }),
       }
     }
-    Err(error) => LoadFromPathResponse {
+    Err(error) => Ok(LoadFromPathResponse {
       success: false,
       error: Some(error),
       data: None,
-    },
+    }),
   }
 }
 
@@ -432,39 +442,43 @@ pub async fn download_system(
 
   Ok(
     match redump_download::download_or_load_system(&app, &slug, force.unwrap_or(false), variant).await {
-      Ok(downloaded) => match parse_dat(&downloaded.xml) {
-        Ok(parsed) => {
-          let loaded = LoadedDat {
-            source_path: downloaded.source_path,
-            original_filename: downloaded.original_filename,
-            parsed,
-          };
-          let data = build_loaded_payload(&loaded);
-          match state.0.lock() {
-            Ok(mut guard) => {
-              *guard = Some(loaded);
-              DownloadSystemResponse {
-                success: true,
-                error: None,
-                data: Some(data),
-                from_cache: Some(downloaded.from_cache),
+      Ok(downloaded) => {
+        redump_download::emit_dat_progress(&app, DatLoadPhase::Parsing, None, "Parsing DAT…");
+        tokio::task::yield_now().await;
+        match parse_dat(&downloaded.xml) {
+          Ok(parsed) => {
+            let loaded = LoadedDat {
+              source_path: downloaded.source_path,
+              original_filename: downloaded.original_filename,
+              parsed,
+            };
+            let data = build_loaded_payload(&loaded);
+            match state.0.lock() {
+              Ok(mut guard) => {
+                *guard = Some(loaded);
+                DownloadSystemResponse {
+                  success: true,
+                  error: None,
+                  data: Some(data),
+                  from_cache: Some(downloaded.from_cache),
+                }
               }
+              Err(e) => DownloadSystemResponse {
+                success: false,
+                error: Some(e.to_string()),
+                data: None,
+                from_cache: None,
+              },
             }
-            Err(e) => DownloadSystemResponse {
-              success: false,
-              error: Some(e.to_string()),
-              data: None,
-              from_cache: None,
-            },
           }
+          Err(error) => DownloadSystemResponse {
+            success: false,
+            error: Some(error),
+            data: None,
+            from_cache: None,
+          },
         }
-        Err(error) => DownloadSystemResponse {
-          success: false,
-          error: Some(error),
-          data: None,
-          from_cache: None,
-        },
-      },
+      }
       Err(error) => DownloadSystemResponse {
         success: false,
         error: Some(error),
@@ -513,6 +527,13 @@ pub async fn download_extra(
       });
     }
   };
+
+  redump_download::emit_dat_progress(
+    &app,
+    DatLoadPhase::Downloading,
+    Some(100),
+    "Choose where to save…",
+  );
 
   let default_dir = settings::resolve_save_directory(&app, None);
   let title = match extra_kind {

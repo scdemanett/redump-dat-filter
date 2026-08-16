@@ -224,6 +224,25 @@ pub struct DownloadExtraResponse {
     pub filename: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DatLoadPhase {
+    Checking,
+    Downloading,
+    Extracting,
+    Reading,
+    Parsing,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatLoadProgress {
+    pub phase: DatLoadPhase,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percent: Option<u8>,
+    pub message: String,
+}
+
 /// Matches the TypeScript `AppUpdateStatus` discriminated union (`state` tag).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "camelCase")]

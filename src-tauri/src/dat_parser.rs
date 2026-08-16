@@ -174,10 +174,11 @@ pub fn parse_dat(xml: &str) -> Result<ParsedDat, String> {
         .clone()
         .or_else(|| header.date.clone());
 
-    let games: Vec<DatGame> = extract_raw_game_blocks(xml)
-        .into_iter()
-        .map(|raw| normalize_game(&raw))
-        .collect();
+    let blocks = extract_raw_game_blocks(xml);
+    let mut games = Vec::with_capacity(blocks.len());
+    for raw in blocks {
+        games.push(normalize_game(raw));
+    }
 
     let mut available_region_set: HashSet<String> = HashSet::new();
     for game in &games {
@@ -342,15 +343,57 @@ fn extract_header_fields(xml: &str) -> Result<HashMap<String, String>, String> {
     Ok(fields)
 }
 
-fn extract_raw_game_blocks(xml: &str) -> Vec<String> {
-    static GAME_RE: OnceLock<Regex> = OnceLock::new();
-    let game_re = GAME_RE
-        .get_or_init(|| Regex::new(r"(?s)<game\b[^>]*?(?:/>|>.*?</game>)").unwrap());
+fn extract_raw_game_blocks(xml: &str) -> Vec<&str> {
+    let mut blocks = Vec::new();
+    let mut from = 0usize;
 
-    game_re
-        .find_iter(xml)
-        .map(|m| m.as_str().to_string())
-        .collect()
+    while let Some(start) = find_open_tag(xml, from, "<game") {
+        let Some(open_end) = xml[start..].find('>') else {
+            break;
+        };
+        let gt = start + open_end;
+        if is_self_closing_tag(&xml[start..=gt]) {
+            blocks.push(&xml[start..=gt]);
+            from = gt + 1;
+            continue;
+        }
+
+        let Some(close_rel) = xml[gt + 1..].find("</game>") else {
+            break;
+        };
+        let end = gt + 1 + close_rel + "</game>".len();
+        blocks.push(&xml[start..end]);
+        from = end;
+    }
+
+    blocks
+}
+
+fn find_open_tag(haystack: &str, mut from: usize, needle: &str) -> Option<usize> {
+    while from < haystack.len() {
+        let rel = haystack[from..].find(needle)?;
+        let pos = from + rel;
+        let name_end = pos + needle.len();
+        if tag_name_ends_at(haystack, name_end) {
+            return Some(pos);
+        }
+        from = name_end;
+    }
+    None
+}
+
+fn tag_name_ends_at(haystack: &str, name_end: usize) -> bool {
+    match haystack[name_end..].chars().next() {
+        None => true,
+        Some(c) => !(c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'),
+    }
+}
+
+fn is_self_closing_tag(open_through_gt: &str) -> bool {
+    open_through_gt
+        .trim_end_matches('>')
+        .trim_end()
+        .ends_with('/')
 }
 
 fn normalize_header(raw: &HashMap<String, String>) -> Result<DatHeader, String> {
@@ -394,68 +437,166 @@ fn normalize_game(raw_xml: &str) -> DatGame {
     let name = extract_game_name(raw_xml);
     let description = extract_child_text(raw_xml, "description");
     let category = extract_child_text(raw_xml, "category");
-    let roms = extract_roms(raw_xml);
-
-    let regions = extract_regions(Some(&name))
-        .or_else(|| extract_regions(description.as_deref()))
-        .or_else(|| {
-            roms.first()
-                .and_then(|rom| rom.attributes.get("name"))
-                .and_then(|n| extract_regions(Some(n)))
-        })
-        .unwrap_or_default();
+    let mut regions = extract_regions(Some(&name))
+        .or_else(|| extract_regions(description.as_deref()));
+    let roms = if regions.is_some() {
+        Vec::new()
+    } else {
+        extract_roms(raw_xml)
+    };
+    if regions.is_none() {
+        regions = roms
+            .first()
+            .and_then(|rom| rom.attributes.get("name"))
+            .and_then(|n| extract_regions(Some(n)));
+    }
 
     DatGame {
         name,
         description,
         category,
         roms,
-        regions,
+        regions: regions.unwrap_or_default(),
         raw_xml: raw_xml.to_string(),
     }
 }
 
 fn extract_game_name(raw_xml: &str) -> String {
-    static ATTR_RE: OnceLock<Regex> = OnceLock::new();
-    let attr_re =
-        ATTR_RE.get_or_init(|| Regex::new(r#"<game\b[^>]*\bname\s*=\s*"([^"]*)""#).unwrap());
-
-    if let Some(caps) = attr_re.captures(raw_xml) {
-        return decode_basic_entities(caps.get(1).unwrap().as_str());
+    if let Some(gt) = raw_xml.find('>') {
+        if let Some(value) = quoted_attr(&raw_xml[..=gt], "name") {
+            return decode_basic_entities(&value);
+        }
     }
 
     extract_child_text(raw_xml, "name").unwrap_or_default()
 }
 
 fn extract_child_text(raw_xml: &str, tag: &str) -> Option<String> {
-    let pattern = format!(r"(?s)<{tag}\b[^>]*>(.*?)</{tag}>");
-    let re = Regex::new(&pattern).ok()?;
-    re.captures(raw_xml).map(|caps| {
-        decode_basic_entities(caps.get(1).unwrap().as_str().trim())
-    }).and_then(non_empty)
+    match tag {
+        "description" => extract_tagged_text(raw_xml, "<description", "</description>"),
+        "category" => extract_tagged_text(raw_xml, "<category", "</category>"),
+        "name" => extract_tagged_text(raw_xml, "<name", "</name>"),
+        _ => {
+            let open = format!("<{tag}");
+            let close = format!("</{tag}>");
+            extract_tagged_text(raw_xml, &open, &close)
+        }
+    }
+}
+
+fn extract_tagged_text(raw_xml: &str, open_needle: &str, close_needle: &str) -> Option<String> {
+    let start = find_open_tag(raw_xml, 0, open_needle)?;
+    let rel_gt = raw_xml[start..].find('>')?;
+    let gt = start + rel_gt;
+    if is_self_closing_tag(&raw_xml[start..=gt]) {
+        return None;
+    }
+    let close_rel = raw_xml[gt + 1..].find(close_needle)?;
+    let value = decode_basic_entities(raw_xml[gt + 1..gt + 1 + close_rel].trim());
+    non_empty(value)
 }
 
 fn extract_roms(raw_xml: &str) -> Vec<DatRom> {
-    static ROM_RE: OnceLock<Regex> = OnceLock::new();
-    static ATTR_RE: OnceLock<Regex> = OnceLock::new();
+    let mut roms = Vec::new();
+    let mut from = 0usize;
 
-    let rom_re = ROM_RE.get_or_init(|| Regex::new(r#"<rom\b([^>]*)/?>"#).unwrap());
-    let attr_re =
-        ATTR_RE.get_or_init(|| Regex::new(r#"([A-Za-z_][\w.-]*)\s*=\s*"([^"]*)""#).unwrap());
+    while let Some(start) = find_open_tag(raw_xml, from, "<rom") {
+        let Some(rel_gt) = raw_xml[start..].find('>') else {
+            break;
+        };
+        let gt = start + rel_gt;
+        let attr_blob = raw_xml[start + "<rom".len()..gt]
+            .trim()
+            .trim_end_matches('/');
+        roms.push(DatRom {
+            attributes: parse_quoted_attrs(attr_blob),
+        });
+        from = gt + 1;
+    }
 
-    rom_re
-        .captures_iter(raw_xml)
-        .map(|caps| {
-            let attr_blob = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let mut attributes = HashMap::new();
-            for attr in attr_re.captures_iter(attr_blob) {
-                let name = attr.get(1).unwrap().as_str().to_string();
-                let value = decode_basic_entities(attr.get(2).unwrap().as_str());
-                attributes.insert(name, value);
+    roms
+}
+
+fn quoted_attr(blob: &str, name: &str) -> Option<String> {
+    let mut from = 0usize;
+    while let Some(rel) = blob[from..].find(name) {
+        let pos = from + rel;
+        let end = pos + name.len();
+        let prev_ok = pos == 0 || {
+            let prev = blob.as_bytes()[pos - 1];
+            prev.is_ascii_whitespace() || prev == b'<'
+        };
+        let next_ok = tag_name_ends_at(blob, end);
+        if prev_ok && next_ok {
+            let rest = blob[end..].trim_start();
+            if let Some(rest) = rest.strip_prefix('=') {
+                let rest = rest.trim_start();
+                if let Some(rest) = rest.strip_prefix('"') {
+                    let close = rest.find('"')?;
+                    return Some(rest[..close].to_string());
+                }
             }
-            DatRom { attributes }
-        })
-        .collect()
+        }
+        from = end;
+    }
+    None
+}
+
+fn parse_quoted_attrs(blob: &str) -> HashMap<String, String> {
+    let bytes = blob.as_bytes();
+    let mut attributes = HashMap::new();
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+
+        let name_start = i;
+        if !(bytes[i].is_ascii_alphabetic() || bytes[i] == b'_') {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        while i < bytes.len()
+            && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'_' | b'.' | b'-'))
+        {
+            i += 1;
+        }
+        let name = &blob[name_start..i];
+
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b'=' {
+            continue;
+        }
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b'"' {
+            continue;
+        }
+        i += 1;
+        let value_start = i;
+        while i < bytes.len() && bytes[i] != b'"' {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        attributes.insert(
+            name.to_string(),
+            decode_basic_entities(&blob[value_start..i]),
+        );
+        i += 1;
+    }
+
+    attributes
 }
 
 fn extract_regions(input: Option<&str>) -> Option<Vec<String>> {
@@ -839,6 +980,9 @@ fn escape_xml_text(value: &str) -> String {
 }
 
 fn decode_basic_entities(value: &str) -> String {
+    if !value.contains('&') {
+        return value.to_string();
+    }
     value
         .replace("&lt;", "<")
         .replace("&gt;", ">")
@@ -1064,5 +1208,301 @@ mod tests {
         let game_re =
             Regex::new(r#"\r\n\t<game name="Forza Motorsport \(Europe\)">"#).unwrap();
         assert!(game_re.is_match(&result.xml));
+    }
+
+    #[test]
+    fn parses_self_closing_games_and_ignores_similar_tags() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <games count="2"/>
+  <game name="Alpha (USA)"/>
+  <game name="Beta (Europe)"></game>
+</datafile>"#,
+        )
+        .expect("parse self-closing DAT");
+
+        assert_eq!(parsed.games.len(), 2);
+        assert_eq!(parsed.games[0].name, "Alpha (USA)");
+        assert_eq!(parsed.games[0].regions, vec!["USA"]);
+        assert_eq!(parsed.games[1].name, "Beta (Europe)");
+        assert_eq!(parsed.games[1].regions, vec!["Europe"]);
+    }
+
+    #[test]
+    fn parses_a_large_dat_without_dropping_games() {
+        let mut xml = String::from(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+"#,
+        );
+        for i in 0..4000 {
+            xml.push_str(&format!(
+                r#"  <game name="Title {i} (USA)"><description>Title {i} (USA)</description><rom name="Title {i} (USA)" size="1" crc="aaaaaaaa"/></game>
+"#
+            ));
+        }
+        xml.push_str("</datafile>");
+
+        let parsed = parse_dat(&xml).expect("parse large DAT");
+        assert_eq!(parsed.games.len(), 4000);
+        assert_eq!(parsed.games[0].name, "Title 0 (USA)");
+        assert_eq!(parsed.games[3999].name, "Title 3999 (USA)");
+        assert_eq!(parsed.available_regions, vec!["USA"]);
+    }
+
+    #[test]
+    fn throws_when_header_name_is_missing() {
+        let err = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><description>No name</description></header>
+  <game name="Example (USA)"><rom name="Example (USA)" size="1" crc="aaaaaaaa"/></game>
+</datafile>"#,
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("missing <name>"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn decodes_entities_in_game_names_but_keeps_source_xml() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <game name="Tom &amp; Jerry (USA)">
+    <rom name="Tom &amp; Jerry (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+</datafile>"#,
+        )
+        .expect("parse entity DAT");
+
+        assert_eq!(parsed.games[0].name, "Tom & Jerry (USA)");
+        assert_eq!(parsed.games[0].regions, vec!["USA"]);
+
+        let result = filter_dat_by_regions(&parsed, &["USA".to_string()], Some("source.dat")).unwrap();
+        assert!(result.xml.contains(r#"name="Tom &amp; Jerry (USA)""#));
+    }
+
+    #[test]
+    fn uses_later_parenthetical_when_earlier_ones_are_not_regions() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <game name="Final Fantasy IX (Disc 1) (USA)">
+    <rom name="Final Fantasy IX (Disc 1) (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+  <game name="Ridge Racer (Rev 1) (Japan)">
+    <rom name="Ridge Racer (Rev 1) (Japan)" size="1" crc="bbbbbbbb"/>
+  </game>
+</datafile>"#,
+        )
+        .expect("parse disc DAT");
+
+        assert_eq!(parsed.games[0].regions, vec!["USA"]);
+        assert_eq!(parsed.games[1].regions, vec!["Japan"]);
+    }
+
+    #[test]
+    fn falls_back_to_description_then_rom_name_for_regions() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <game name="Catalog 1001">
+    <description>Cool Game (Europe)</description>
+    <rom name="Cool Game (Europe)" size="1" crc="aaaaaaaa"/>
+  </game>
+  <game name="Mystery Dump">
+    <rom name="Mystery Dump (Japan)" size="1" crc="bbbbbbbb"/>
+  </game>
+  <game name="No Clue">
+    <rom name="No Clue.bin" size="1" crc="cccccccc"/>
+  </game>
+</datafile>"#,
+        )
+        .expect("parse fallback DAT");
+
+        assert_eq!(parsed.games[0].regions, vec!["Europe"]);
+        assert_eq!(parsed.games[1].regions, vec!["Japan"]);
+        assert_eq!(parsed.games[2].regions, Vec::<String>::new());
+        assert_eq!(parsed.available_regions, vec!["Europe", "Japan", "Unknown"]);
+    }
+
+    #[test]
+    fn splits_combined_region_tokens_and_synonyms() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <game name="A (USA / Europe)"><rom name="A" size="1" crc="aaaaaaaa"/></game>
+  <game name="B (Japan &amp; USA)"><rom name="B" size="1" crc="bbbbbbbb"/></game>
+  <game name="C (PAL)"><rom name="C" size="1" crc="cccccccc"/></game>
+  <game name="D (JPN)"><rom name="D" size="1" crc="dddddddd"/></game>
+  <game name="E (World)"><rom name="E" size="1" crc="eeeeeeee"/></game>
+</datafile>"#,
+        )
+        .expect("parse combined regions DAT");
+
+        assert_eq!(parsed.games[0].regions, vec!["USA", "Europe"]);
+        assert_eq!(parsed.games[1].regions, vec!["Japan", "USA"]);
+        assert_eq!(parsed.games[2].regions, vec!["Europe"]);
+        assert_eq!(parsed.games[3].regions, vec!["Japan"]);
+        assert_eq!(parsed.games[4].regions, vec!["World"]);
+    }
+
+    #[test]
+    fn reads_child_name_when_attribute_is_missing() {
+        let parsed = parse_dat(
+            r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Test System</name></header>
+  <game>
+    <name>Child Named (USA)</name>
+    <rom name="Child Named (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+</datafile>"#,
+        )
+        .expect("parse child name DAT");
+
+        assert_eq!(parsed.games[0].name, "Child Named (USA)");
+        assert_eq!(parsed.games[0].regions, vec!["USA"]);
+    }
+
+    #[test]
+    fn preserves_all_rom_lines_and_extra_tags_when_filtering() {
+        let xml = r#"<?xml version="1.0"?>
+<datafile>
+  <header><name>Sony - PlayStation</name></header>
+  <game name="Ridge Racer (USA)">
+    <category>Games</category>
+    <description>Ridge Racer (USA)</description>
+    <id>1</id>
+    <serial>SCUS-94300</serial>
+    <rom name="Ridge Racer (USA).cue" size="10" crc="aaaaaaaa"/>
+    <rom name="Ridge Racer (USA).bin" size="100" crc="bbbbbbbb"/>
+  </game>
+</datafile>"#;
+        let parsed = parse_dat(xml).expect("parse multi-rom DAT");
+        let result = filter_dat_by_regions(&parsed, &["USA".to_string()], Some("source.dat")).unwrap();
+
+        assert_eq!(parsed.games[0].category.as_deref(), Some("Games"));
+        assert!(result.xml.contains("<serial>SCUS-94300</serial>"));
+        assert!(result.xml.contains(r#"<rom name="Ridge Racer (USA).cue""#));
+        assert!(result.xml.contains(r#"<rom name="Ridge Racer (USA).bin""#));
+    }
+
+    #[test]
+    fn filters_to_union_of_selected_regions() {
+        let parsed = parse_dat(SAMPLE_DAT).unwrap();
+        let result = filter_dat_by_regions(
+            &parsed,
+            &["USA".to_string(), "Japan".to_string()],
+            Some("source.dat"),
+        )
+        .unwrap();
+
+        assert_eq!(result.games.len(), 2);
+        assert_eq!(result.games[0].name, "Halo (USA)");
+        assert_eq!(result.games[1].name, "Project Gotham Racing 2 (Japan)");
+        assert!(result.header.name.contains("(USA, Japan)"));
+    }
+
+    fn sample_variant_dat(serial_version: bool) -> String {
+        let descriptor = if serial_version {
+            "Datfile (serial,version)"
+        } else {
+            "Datfile"
+        };
+        let extra_usa = if serial_version {
+            "    <serial>SCUS-94300</serial>\n    <version>1.0</version>\n"
+        } else {
+            ""
+        };
+        let extra_europe = if serial_version {
+            "    <serial>SCES-00005</serial>\n    <version>1.1</version>\n"
+        } else {
+            ""
+        };
+        format!(
+            r#"<?xml version="1.0"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+<datafile>
+  <header>
+    <name>Sony - PlayStation</name>
+    <description>Sony - PlayStation - {descriptor} (2) (2026-08-15 10-57-09)</description>
+    <version>2026-08-15 10-57-09</version>
+    <date>2026-08-15</date>
+    <author>redump.org</author>
+  </header>
+  <game name="Ridge Racer (USA)">
+    <category>Games</category>
+    <description>Ridge Racer (USA)</description>
+{extra_usa}    <rom name="Ridge Racer (USA)" size="1" crc="aaaaaaaa"/>
+  </game>
+  <game name="Tekken (Europe)">
+    <category>Games</category>
+    <description>Tekken (Europe)</description>
+{extra_europe}    <rom name="Tekken (Europe)" size="1" crc="bbbbbbbb"/>
+  </game>
+</datafile>"#
+        )
+    }
+
+    #[test]
+    fn standard_and_serial_version_dats_share_games_and_keep_variant_tags() {
+        let parsed_standard = parse_dat(&sample_variant_dat(false)).expect("parse standard DAT");
+        let parsed_serial = parse_dat(&sample_variant_dat(true)).expect("parse serial DAT");
+
+        assert_eq!(parsed_standard.descriptor, "Datfile");
+        assert_eq!(parsed_standard.normalized_descriptor, "Datfile");
+        assert_eq!(parsed_serial.descriptor, "Datfile (serial,version)");
+        assert_eq!(parsed_serial.normalized_descriptor, "Datfile (serial,version)");
+
+        assert_eq!(parsed_standard.games.len(), parsed_serial.games.len());
+        for (standard, serial) in parsed_standard.games.iter().zip(&parsed_serial.games) {
+            assert_eq!(standard.name, serial.name);
+            assert_eq!(standard.regions, serial.regions);
+            assert_eq!(standard.category, serial.category);
+        }
+        assert_eq!(parsed_standard.available_regions, parsed_serial.available_regions);
+        assert_eq!(parsed_standard.available_regions, vec!["Europe", "USA"]);
+
+        let standard_filtered = filter_dat_by_regions(
+            &parsed_standard,
+            &["USA".to_string()],
+            Some("Sony - PlayStation - Datfile (2) (2026-08-15 10-57-09).dat"),
+        )
+        .unwrap();
+        let serial_filtered = filter_dat_by_regions(
+            &parsed_serial,
+            &["USA".to_string()],
+            Some("Sony - PlayStation - Datfile (serial,version) (2) (2026-08-15 10-57-09).dat"),
+        )
+        .unwrap();
+
+        assert_eq!(standard_filtered.games.len(), 1);
+        assert_eq!(serial_filtered.games.len(), 1);
+        assert_eq!(standard_filtered.games[0].name, serial_filtered.games[0].name);
+        assert!(!standard_filtered.xml.contains("<serial>"));
+        assert!(!standard_filtered.xml.contains("<version>1.0</version>"));
+        assert!(!standard_filtered.filename.contains("serial,version"));
+        assert!(standard_filtered.filename.contains("Datfile (1)"));
+        assert!(serial_filtered.xml.contains("<serial>SCUS-94300</serial>"));
+        assert!(serial_filtered.xml.contains("<version>1.0</version>"));
+        assert!(!serial_filtered.xml.contains("Tekken"));
+        assert!(serial_filtered.filename.contains("Datfile (serial,version) (1)"));
+        assert!(serial_filtered
+            .header
+            .description
+            .as_deref()
+            .unwrap_or("")
+            .contains("Datfile (serial,version)"));
     }
 }

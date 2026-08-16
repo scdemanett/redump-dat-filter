@@ -226,6 +226,55 @@ main.app-shell {
   flex-wrap: wrap;
 }
 
+.dat-load-progress {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.dat-load-progress__label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.dat-load-progress__track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--form-bg);
+  border: 1px solid var(--form-border);
+  overflow: hidden;
+}
+
+.dat-load-progress__bar {
+  height: 100%;
+  width: 0;
+  background: var(--primary);
+  border-radius: inherit;
+  transition: width 0.15s ease;
+}
+
+.dat-load-progress__bar.is-indeterminate {
+  width: 35%;
+  animation: dat-load-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes dat-load-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dat-load-progress__bar.is-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.45;
+  }
+}
+
 .header-actions {
   display: flex;
   gap: 0.75rem;
