@@ -82,7 +82,7 @@ impl ExtraKind {
         }
     }
 
-    fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Self::Cues => "cuesheets",
             Self::Sbi => "SBI",
@@ -154,7 +154,7 @@ pub fn cache_dat_dir(cache_root: &Path, slug: &str, variant: DatVariant) -> Path
     }
 }
 
-fn dat_file_path(app: &AppHandle, slug: &str, variant: DatVariant) -> PathBuf {
+pub fn dat_file_path(app: &AppHandle, slug: &str, variant: DatVariant) -> PathBuf {
     dat_dir(app, slug, variant).join("data.dat")
 }
 
@@ -808,7 +808,7 @@ fn extract_dat_from_zip(buffer: &[u8]) -> Result<(String, String), String> {
     Ok((xml, zip_entry_to_dat_filename(&entry_name)))
 }
 
-fn replace_zip_with_dat(name: &str) -> String {
+pub fn replace_zip_with_dat(name: &str) -> String {
     if name.to_ascii_lowercase().ends_with(".zip") {
         format!("{}.dat", &name[..name.len() - 4])
     } else {
@@ -816,10 +816,12 @@ fn replace_zip_with_dat(name: &str) -> String {
     }
 }
 
-async fn download_and_cache_dat(
+/// `label` names the download in progress messages (e.g. "DAT", or a system name for batch updates).
+pub async fn download_and_cache_dat(
     app: &AppHandle,
     slug: &str,
     variant: DatVariant,
+    label: &str,
 ) -> Result<DownloadSystemResult, String> {
     emit_dat_progress(
         app,
@@ -861,7 +863,7 @@ async fn download_and_cache_dat(
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok());
 
-    let buffer = read_body_with_progress(app, response, content_length, "DAT").await?;
+    let buffer = read_body_with_progress(app, response, content_length, label).await?;
 
     let looks_like_zip = (buffer.len() >= 4 && buffer[0] == 0x50 && buffer[1] == 0x4b)
         || disposition
@@ -996,7 +998,7 @@ pub async fn download_or_load_system(
         }
     }
 
-    download_and_cache_dat(app, normalized, variant).await
+    download_and_cache_dat(app, normalized, variant, "DAT").await
 }
 
 pub struct DownloadExtraResult {
@@ -1004,10 +1006,12 @@ pub struct DownloadExtraResult {
     pub filename: String,
 }
 
+/// `label` names the download in progress messages (see `download_and_cache_dat`).
 pub async fn download_extra(
     app: &AppHandle,
     slug: &str,
     kind: ExtraKind,
+    label: &str,
 ) -> Result<DownloadExtraResult, String> {
     let normalized = slug.trim();
     if normalized.is_empty() {
@@ -1054,7 +1058,7 @@ pub async fn download_extra(
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok());
 
-    let bytes = read_body_with_progress(app, response, content_length, kind.label()).await?;
+    let bytes = read_body_with_progress(app, response, content_length, label).await?;
 
     Ok(DownloadExtraResult {
         bytes,

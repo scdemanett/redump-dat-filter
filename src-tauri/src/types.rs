@@ -224,6 +224,44 @@ pub struct DownloadExtraResponse {
     pub filename: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchFailure {
+    pub slug: String,
+    pub name: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAllResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub updated: Vec<String>,
+    pub failed: Vec<BatchFailure>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub systems: Option<Vec<RedumpSystem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<RedumpSystemListSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetched_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAllFilteredResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canceled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory: Option<String>,
+    pub saved: Vec<String>,
+    pub failed: Vec<BatchFailure>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DatLoadPhase {

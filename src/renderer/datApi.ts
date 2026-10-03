@@ -15,7 +15,9 @@ import type {
   ListSystemsResponse,
   LoadFromPathResponse,
   OpenDatResponse,
-  SaveFilterResponse
+  SaveAllFilteredResponse,
+  SaveFilterResponse,
+  UpdateAllResponse
 } from '../shared';
 
 export const datAPI = {
@@ -58,6 +60,13 @@ export const datAPI = {
       force: Boolean(force),
       serialVersion: serialVersion ?? null
     }),
+
+  updateAllSystems: (): Promise<UpdateAllResponse> => invoke('update_all_systems'),
+
+  saveAllFiltered: (): Promise<SaveAllFilteredResponse> => invoke('save_all_filtered'),
+
+  saveAllExtras: (kind: ExtraDownloadKind): Promise<SaveAllFilteredResponse> =>
+    invoke('save_all_extras', { kind }),
 
   downloadExtra: (slug: string, kind: ExtraDownloadKind): Promise<DownloadExtraResponse> =>
     invoke('download_extra', { slug, kind }),

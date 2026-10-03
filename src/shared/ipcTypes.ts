@@ -156,6 +156,31 @@ export interface DownloadSystemResponse {
   fromCache?: boolean;
 }
 
+export interface BatchFailure {
+  slug: string;
+  name: string;
+  error: string;
+}
+
+export interface UpdateAllResponse {
+  success: boolean;
+  error?: string;
+  updated: string[];
+  failed: BatchFailure[];
+  systems?: RedumpSystem[];
+  source?: RedumpSystemListSource;
+  fetchedAt?: string;
+}
+
+export interface SaveAllFilteredResponse {
+  success: boolean;
+  canceled?: boolean;
+  error?: string;
+  directory?: string;
+  saved: string[];
+  failed: BatchFailure[];
+}
+
 export type ExtraDownloadKind = 'cues' | 'sbi';
 
 export type DatLoadPhase = 'checking' | 'downloading' | 'extracting' | 'reading' | 'parsing';

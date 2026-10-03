@@ -5,6 +5,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import type {
   AppSettings,
   AppUpdateStatus,
+  BatchFailure,
   DatHeader,
   DatLoadProgress,
   ExtraDownloadKind,
@@ -90,6 +91,8 @@ function App() {
   const [systemPickerOpen, setSystemPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [extraDownloading, setExtraDownloading] = useState(false);
+  const [batchBusy, setBatchBusy] = useState<'update' | 'save' | 'extras' | null>(null);
+  const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [loadProgress, setLoadProgress] = useState<DatLoadProgress | null>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
 
@@ -102,6 +105,7 @@ function App() {
   const systemPickerRef = useRef<HTMLDivElement | null>(null);
   const systemSearchRef = useRef<HTMLInputElement | null>(null);
   const saveMenuRef = useRef<HTMLDivElement | null>(null);
+  const batchMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef(settings);
   const systemsRef = useRef(systems);
   const hydrateLoadedDatRef = useRef<(
@@ -498,6 +502,31 @@ function App() {
   }, [saveMenuOpen]);
 
   useEffect(() => {
+    if (!batchMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!batchMenuRef.current?.contains(event.target as Node)) {
+        setBatchMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setBatchMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [batchMenuOpen]);
+
+  useEffect(() => {
     if (!loadedDat) {
       setPreviewHeader(null);
       setPreviewSummary(null);
@@ -648,6 +677,152 @@ function App() {
       setUpdatesChecking(false);
     }
   }, [applySystemsResponse]);
+
+  const cachedVisibleCount = useMemo(
+    () => visibleSystems.filter((system) => system.downloaded).length,
+    [visibleSystems]
+  );
+
+  const handleUpdateAll = useCallback(async () => {
+    setBatchBusy('update');
+    setLoadProgress(null);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const response = await datAPI.updateAllSystems();
+      if (!response.success) {
+        setError(response.error ?? 'Failed to update DATs.');
+        return;
+      }
+      if (response.systems) {
+        applySystemsResponse(response);
+      }
+
+      const updatedCount = response.updated.length;
+      const summary = `Updated ${updatedCount} DAT${updatedCount === 1 ? '' : 's'}.`;
+
+      // The loaded DAT is an in-memory copy; reload it if its cache file was just replaced.
+      if (
+        loadedDat &&
+        selectedSlug &&
+        response.updated.includes(selectedSlug) &&
+        matchSystemForDat(loadedDat, response.systems ?? systemsRef.current)?.slug === selectedSlug
+      ) {
+        const reloaded = await datAPI.downloadSystem(
+          selectedSlug,
+          false,
+          resolveDatVariant(settingsRef.current, selectedSlug) === 'serial'
+        );
+        if (reloaded.success && reloaded.data) {
+          hydrateLoadedDat(reloaded.data, summary, { preferSlug: selectedSlug });
+        }
+      }
+
+      if (response.failed.length > 0) {
+        setError(`${summary} ${formatBatchFailures(response.failed)}`);
+      } else {
+        setInfo(summary);
+      }
+    } catch (err) {
+      setError(`Failed to update DATs: ${extractMessage(err)}`);
+    } finally {
+      setBatchBusy(null);
+      setLoadProgress(null);
+    }
+  }, [applySystemsResponse, hydrateLoadedDat, loadedDat, selectedSlug]);
+
+  const handleSaveAllFiltered = useCallback(async () => {
+    setBatchBusy('save');
+    setLoadProgress(null);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const response = await datAPI.saveAllFiltered();
+      if (!response.success) {
+        if (response.canceled) {
+          setInfo('Save cancelled.');
+          return;
+        }
+        setError(response.error ?? 'Failed to save filtered DAT files.');
+        return;
+      }
+
+      const savedCount = response.saved.length;
+      const summary = `Saved ${savedCount} filtered DAT${savedCount === 1 ? '' : 's'} to ${response.directory ?? 'the selected folder'}.`;
+      if (response.failed.length > 0) {
+        setError(`${summary} ${formatBatchFailures(response.failed)}`);
+      } else {
+        setInfo(summary);
+      }
+
+      try {
+        const latest = await datAPI.getSettings();
+        settingsRef.current = latest.settings;
+        setSettings(latest.settings);
+      } catch {
+        // keep in-memory settings if refresh fails
+      }
+    } catch (err) {
+      setError(`Failed to save filtered DAT files: ${extractMessage(err)}`);
+    } finally {
+      setBatchBusy(null);
+      setLoadProgress(null);
+    }
+  }, []);
+
+  const cuesVisibleCount = useMemo(
+    () => visibleSystems.filter((system) => system.hasCues).length,
+    [visibleSystems]
+  );
+
+  const sbiVisibleCount = useMemo(
+    () => visibleSystems.filter((system) => system.hasSbi).length,
+    [visibleSystems]
+  );
+
+  const handleSaveAllExtras = useCallback(async (kind: ExtraDownloadKind) => {
+    const noun = kind === 'cues' ? 'cuesheet' : 'SBI';
+    setBatchMenuOpen(false);
+    setBatchBusy('extras');
+    setLoadProgress(null);
+    setError(null);
+    setInfo(null);
+
+    try {
+      const response = await datAPI.saveAllExtras(kind);
+      if (!response.success) {
+        if (response.canceled) {
+          setInfo('Download cancelled.');
+          return;
+        }
+        setError(response.error ?? `Failed to download ${noun} archives.`);
+        return;
+      }
+
+      const savedCount = response.saved.length;
+      const summary = `Saved ${savedCount} ${noun} archive${savedCount === 1 ? '' : 's'} to ${response.directory ?? 'the selected folder'}.`;
+      if (response.failed.length > 0) {
+        setError(`${summary} ${formatBatchFailures(response.failed)}`);
+      } else {
+        setInfo(summary);
+      }
+
+      try {
+        const latest = await datAPI.getSettings();
+        settingsRef.current = latest.settings;
+        setSettings(latest.settings);
+      } catch {
+        // keep in-memory settings if refresh fails
+      }
+    } catch (err) {
+      setError(`Failed to download ${noun} archives: ${extractMessage(err)}`);
+    } finally {
+      setBatchBusy(null);
+      setLoadProgress(null);
+    }
+  }, []);
 
   const handleDownloadSystem = useCallback(
     async (force: boolean) => {
@@ -827,8 +1002,9 @@ function App() {
     return selectedRegions.join(', ');
   }, [selectedRegions]);
 
+  const hasBatchExtras = cuesVisibleCount > 0 || sbiVisibleCount > 0;
   const canPreview = !!loadedDat;
-  const datBusy = opening || downloading;
+  const datBusy = opening || downloading || batchBusy !== null;
   const canSave = !!previewSummary && !previewLoading && !saving && !datBusy;
   const downloadLabel = selectedSystem?.downloaded
     ? selectedSystem.updateAvailable
@@ -975,7 +1151,7 @@ function App() {
                 />
               </svg>
             </button>
-            <button type="button" className="button ghost" onClick={handleOpenDat} disabled={opening || downloading}>
+            <button type="button" className="button ghost" onClick={handleOpenDat} disabled={datBusy}>
               {opening ? busyActionLabel(loadProgress, 'Opening…') : 'Open DAT'}
             </button>
             <div className="split-button" ref={saveMenuRef}>
@@ -1098,7 +1274,7 @@ function App() {
           </div>
         )}
 
-        {(opening || downloading || extraDownloading) && (
+        {(datBusy || extraDownloading) && (
           <div className="dat-load-progress" role="status" aria-live="polite">
             <div className="dat-load-progress__label">
               {loadProgress?.message
@@ -1117,7 +1293,7 @@ function App() {
           </div>
         )}
 
-        <section className={`panel redump-panel ${systemPickerOpen ? 'is-picker-open' : ''}`}>
+        <section className={`panel redump-panel ${systemPickerOpen || batchMenuOpen ? 'is-picker-open' : ''}`}>
           <header className="panel-header">
             <div>
               <h3>Download from Redump</h3>
@@ -1254,7 +1430,7 @@ function App() {
                 type="button"
                 className="button"
                 onClick={() => handleDownloadSystem(false)}
-                disabled={!selectedSlug || downloading || opening}
+                disabled={!selectedSlug || datBusy}
               >
                 {downloading ? busyActionLabel(loadProgress, 'Working…') : downloadLabel}
               </button>
@@ -1262,11 +1438,91 @@ function App() {
                 type="button"
                 className="button ghost"
                 onClick={() => handleDownloadSystem(true)}
-                disabled={!selectedSlug || downloading || opening}
+                disabled={!selectedSlug || datBusy}
                 title="Force re-download from Redump"
               >
                 Force Refresh
               </button>
+            </div>
+          </div>
+
+          <div className="redump-batch">
+            <span className="field-label">All visible systems</span>
+            <div className="redump-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={handleUpdateAll}
+                disabled={updateCount === 0 || datBusy || extraDownloading || updatesChecking || systemsLoading}
+                title="Download the latest DAT for every visible system with an update available"
+              >
+                {batchBusy === 'update'
+                  ? 'Updating…'
+                  : `Update All${updateCount > 0 ? ` (${updateCount})` : ''}`}
+              </button>
+              <div className="split-button" ref={batchMenuRef}>
+                <button
+                  type="button"
+                  className={`button secondary${hasBatchExtras ? ' split-button__main' : ''}`}
+                  onClick={handleSaveAllFiltered}
+                  disabled={cachedVisibleCount === 0 || datBusy || extraDownloading || systemsLoading}
+                  title="Filter every downloaded visible system by your default regions and save the DATs to a folder"
+                >
+                  {batchBusy === 'save'
+                    ? 'Saving…'
+                    : batchBusy === 'extras'
+                      ? 'Downloading…'
+                      : `Save All Filtered${cachedVisibleCount > 0 ? ` (${cachedVisibleCount})` : ''}`}
+                </button>
+                {hasBatchExtras && (
+                  <>
+                    <button
+                      type="button"
+                      className="button secondary split-button__chevron"
+                      aria-haspopup="menu"
+                      aria-expanded={batchMenuOpen}
+                      aria-label="More downloads for all visible systems"
+                      disabled={datBusy || extraDownloading || systemsLoading}
+                      onClick={() => setBatchMenuOpen((open) => !open)}
+                    >
+                      <svg viewBox="0 0 12 12" aria-hidden="true">
+                        <path
+                          d="M2.5 4.25 6 7.75 9.5 4.25"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    {batchMenuOpen && (
+                      <div className="split-button__menu" role="menu">
+                        {cuesVisibleCount > 0 && (
+                          <button
+                            type="button"
+                            className="split-button__item"
+                            role="menuitem"
+                            onClick={() => void handleSaveAllExtras('cues')}
+                          >
+                            Download All Cuesheets ({cuesVisibleCount})
+                          </button>
+                        )}
+                        {sbiVisibleCount > 0 && (
+                          <button
+                            type="button"
+                            className="split-button__item"
+                            role="menuitem"
+                            onClick={() => void handleSaveAllExtras('sbi')}
+                          >
+                            Download All SBI ({sbiVisibleCount})
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1484,6 +1740,10 @@ function matchSystemForDat(
     .sort((a, b) => b.score - a.score);
 
   return scored[0]?.system;
+}
+
+function formatBatchFailures(failed: BatchFailure[]): string {
+  return `${failed.length} failed: ${failed.map((entry) => `${entry.name} (${entry.error})`).join('; ')}`;
 }
 
 function extractMessage(error: unknown): string {

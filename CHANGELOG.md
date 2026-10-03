@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.0] - 2026-10-03
+
+### Added
+
+- **Update All** button that re-downloads the DAT for every visible system with an update available.
+- **Save All Filtered** button that filters every downloaded visible system by the default regions and saves the DATs to one folder.
+- **Download All Cuesheets** / **Download All SBI** from the Save All Filtered menu, for every visible system that offers them.
+
+### Changed
+
+- Updated npm and Rust dependencies (Tauri 2.12, React 19.3, Vite 8.3).
+
 ## [2.1.0] - 2026-08-15
 
 ### Added
@@ -142,6 +154,7 @@ First stable release of Redump DAT Filter.
 - Add live Redump DAT download with cached system picker.
 - Polish desktop shell with Redump theming and window state persistence.
 
+[2.2.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.2.0
 [2.1.0]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.1.0
 [2.0.2]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.2
 [2.0.1]: https://github.com/scdemanett/redump-dat-filter/releases/tag/v2.0.1

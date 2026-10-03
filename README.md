@@ -7,6 +7,7 @@ Cross-platform Tauri desktop application for trimming Redump.org DAT collections
 - Download the latest Redump DAT for a system directly from [redump.info](https://redump.info/downloads) (no manual browser download required).
 - Choose standard **DAT** or **DAT + Serial/Version** per system (cached separately).
 - Download cuesheets and SBI archives from the Save menu when Redump provides them.
+- Batch actions for all visible systems: update every DAT with an update available, save all filtered DATs to a folder, and download all cuesheets or SBI archives.
 - Live system list with disk cache and manual refresh so new Redump systems appear without an app update.
 - Cheap update badges for previously downloaded DATs via HTTP HEAD checks.
 - Parse large Redump DAT (XML) files entirely in the Rust backend, with download/parse progress in the UI.

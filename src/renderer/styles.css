@@ -807,6 +807,23 @@ main.app-shell {
   align-items: center;
 }
 
+.redump-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  margin-top: 0.9rem;
+}
+
+.redump-batch .split-button__chevron {
+  box-shadow: inset 0 0 0 1px var(--form-border);
+}
+
+.redump-batch .split-button__menu {
+  left: 0;
+  right: auto;
+}
+
 .redump-selection-hint {
   margin: 0.9rem 0 0;
   color: var(--muted);

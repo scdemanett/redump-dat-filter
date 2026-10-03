@@ -3,9 +3,10 @@ use crate::dat_parser::{filter_dat_by_regions, parse_dat, ParsedDat};
 use crate::redump_download;
 use crate::settings;
 use crate::types::{
-  AppSettings, AppUpdateStatus, CheckUpdatesResponse, CurrentDatResponse, DatLoadPhase, DatVariant,
-  DownloadExtraResponse, DownloadSystemResponse, FilterPreviewResponse, GetSettingsResponse,
-  ListSystemsResponse, LoadFromPathResponse, LoadedDatPayload, OpenDatResponse, SaveFilterResponse,
+  AppSettings, AppUpdateStatus, BatchFailure, CheckUpdatesResponse, CurrentDatResponse,
+  DatLoadPhase, DatVariant, DownloadExtraResponse, DownloadSystemResponse, FilterPreviewResponse,
+  GetSettingsResponse, ListSystemsResponse, LoadFromPathResponse, LoadedDatPayload,
+  OpenDatResponse, RedumpSystem, SaveAllFilteredResponse, SaveFilterResponse, UpdateAllResponse,
 };
 use std::path::Path;
 use std::sync::Mutex;
@@ -489,6 +490,259 @@ pub async fn download_system(
   )
 }
 
+/// Visible systems (per settings) matching `predicate`, from the cached system list.
+async fn visible_systems_where(
+  app: &AppHandle,
+  settings: &AppSettings,
+  predicate: impl Fn(&RedumpSystem) -> bool,
+) -> Result<Vec<RedumpSystem>, String> {
+  let list = redump_download::get_system_list(app, false).await?;
+  Ok(
+    list
+      .systems
+      .into_iter()
+      .filter(|system| settings::allows_system_slug(settings, &system.slug) && predicate(system))
+      .collect(),
+  )
+}
+
+#[tauri::command]
+pub async fn update_all_systems(app: AppHandle) -> UpdateAllResponse {
+  let (settings, _) = settings::load_settings(&app);
+  let pending = match visible_systems_where(&app, &settings, |system| {
+    system.update_available.unwrap_or(false)
+  })
+  .await
+  {
+    Ok(pending) => pending,
+    Err(error) => {
+      return UpdateAllResponse {
+        error: Some(error),
+        ..Default::default()
+      }
+    }
+  };
+
+  let total = pending.len();
+  let mut updated = Vec::new();
+  let mut failed = Vec::new();
+  for (index, system) in pending.into_iter().enumerate() {
+    let variant = settings::resolve_dat_variant(&settings, &system.slug);
+    let label = format!("{} ({} of {total})", system.name, index + 1);
+    match redump_download::download_and_cache_dat(&app, &system.slug, variant, &label).await {
+      Ok(_) => updated.push(system.slug),
+      Err(error) => failed.push(BatchFailure {
+        slug: system.slug,
+        name: system.name,
+        error,
+      }),
+    }
+  }
+
+  let refreshed = redump_download::get_system_list(&app, false).await.ok();
+  UpdateAllResponse {
+    success: true,
+    error: None,
+    updated,
+    failed,
+    source: refreshed.as_ref().map(|list| list.source),
+    fetched_at: refreshed.as_ref().and_then(|list| list.fetched_at.clone()),
+    systems: refreshed.map(|list| list.systems),
+  }
+}
+
+/// Filter one cached DAT by the default regions and write it into `directory`.
+fn save_filtered_from_cache(
+  cached_path: &Path,
+  source_filename: &str,
+  default_regions: &[String],
+  directory: &Path,
+) -> Result<String, String> {
+  let xml = std::fs::read_to_string(cached_path)
+    .map_err(|e| format!("Failed to read cached DAT: {e}"))?;
+  let parsed = parse_dat(&xml)?;
+
+  // Same selection the UI applies on load: default regions this DAT actually has.
+  let regions: Vec<String> = default_regions
+    .iter()
+    .filter(|region| parsed.available_regions.contains(region))
+    .cloned()
+    .collect();
+  if regions.is_empty() && !default_regions.is_empty() {
+    return Err("No games in the default regions.".into());
+  }
+
+  let result = filter_dat_by_regions(&parsed, &regions, Some(source_filename))?;
+  std::fs::write(directory.join(&result.filename), result.xml.as_bytes())
+    .map_err(|e| format!("Failed to save {}: {e}", result.filename))?;
+  Ok(result.filename)
+}
+
+#[tauri::command]
+pub async fn save_all_filtered(app: AppHandle) -> SaveAllFilteredResponse {
+  let (settings, _) = settings::load_settings(&app);
+  let cached = match visible_systems_where(&app, &settings, |system| {
+    system.downloaded.unwrap_or(false)
+  })
+  .await
+  {
+    Ok(cached) => cached,
+    Err(error) => {
+      return SaveAllFilteredResponse {
+        error: Some(error),
+        ..Default::default()
+      }
+    }
+  };
+
+  if cached.is_empty() {
+    return SaveAllFilteredResponse {
+      error: Some("No visible systems have a downloaded DAT yet.".into()),
+      ..Default::default()
+    };
+  }
+
+  let mut dialog = app
+    .dialog()
+    .file()
+    .set_title("Choose a folder for the filtered DAT files");
+  if let Some(dir) = settings::resolve_save_directory(&app, None) {
+    dialog = dialog.set_directory(dir);
+  }
+  let Some(FilePath::Path(directory)) = dialog.blocking_pick_folder() else {
+    return SaveAllFilteredResponse {
+      canceled: Some(true),
+      ..Default::default()
+    };
+  };
+
+  let total = cached.len();
+  let mut saved = Vec::new();
+  let mut failed = Vec::new();
+  for (index, system) in cached.into_iter().enumerate() {
+    redump_download::emit_dat_progress(
+      &app,
+      DatLoadPhase::Parsing,
+      Some((index * 100 / total) as u8),
+      format!("Filtering {} ({} of {total})…", system.name, index + 1),
+    );
+    tokio::task::yield_now().await;
+
+    let variant = settings::resolve_dat_variant(&settings, &system.slug);
+    let source_filename = redump_download::replace_zip_with_dat(
+      system.cached_filename.as_deref().unwrap_or("data.dat"),
+    );
+    match save_filtered_from_cache(
+      &redump_download::dat_file_path(&app, &system.slug, variant),
+      &source_filename,
+      &settings.default_regions,
+      &directory,
+    ) {
+      Ok(filename) => saved.push(filename),
+      Err(error) => failed.push(BatchFailure {
+        slug: system.slug,
+        name: system.name,
+        error,
+      }),
+    }
+  }
+
+  if let Some(first) = saved.first() {
+    settings::remember_save_directory(&app, &directory.join(first).to_string_lossy());
+  }
+
+  SaveAllFilteredResponse {
+    success: true,
+    canceled: None,
+    error: None,
+    directory: Some(directory.to_string_lossy().to_string()),
+    saved,
+    failed,
+  }
+}
+
+#[tauri::command]
+pub async fn save_all_extras(app: AppHandle, kind: String) -> SaveAllFilteredResponse {
+  let Some(extra_kind) = redump_download::ExtraKind::from_label(&kind) else {
+    return SaveAllFilteredResponse {
+      error: Some("Unknown extra download type.".into()),
+      ..Default::default()
+    };
+  };
+
+  let (settings, _) = settings::load_settings(&app);
+  let supported = match visible_systems_where(&app, &settings, |system| match extra_kind {
+    redump_download::ExtraKind::Cues => system.has_cues,
+    redump_download::ExtraKind::Sbi => system.has_sbi,
+  })
+  .await
+  {
+    Ok(supported) => supported,
+    Err(error) => {
+      return SaveAllFilteredResponse {
+        error: Some(error),
+        ..Default::default()
+      }
+    }
+  };
+
+  if supported.is_empty() {
+    return SaveAllFilteredResponse {
+      error: Some("No visible systems offer this download.".into()),
+      ..Default::default()
+    };
+  }
+
+  let title = match extra_kind {
+    redump_download::ExtraKind::Cues => "Choose a folder for the cuesheet archives",
+    redump_download::ExtraKind::Sbi => "Choose a folder for the SBI archives",
+  };
+  let mut dialog = app.dialog().file().set_title(title);
+  if let Some(dir) = settings::resolve_save_directory(&app, None) {
+    dialog = dialog.set_directory(dir);
+  }
+  let Some(FilePath::Path(directory)) = dialog.blocking_pick_folder() else {
+    return SaveAllFilteredResponse {
+      canceled: Some(true),
+      ..Default::default()
+    };
+  };
+
+  let total = supported.len();
+  let mut saved = Vec::new();
+  let mut failed = Vec::new();
+  for (index, system) in supported.into_iter().enumerate() {
+    let label = format!("{} ({} of {total})", system.name, index + 1);
+    let result = match redump_download::download_extra(&app, &system.slug, extra_kind, &label).await {
+      Ok(downloaded) => std::fs::write(directory.join(&downloaded.filename), &downloaded.bytes)
+        .map(|_| downloaded.filename.clone())
+        .map_err(|e| format!("Failed to save {}: {e}", downloaded.filename)),
+      Err(error) => Err(error),
+    };
+    match result {
+      Ok(filename) => saved.push(filename),
+      Err(error) => failed.push(BatchFailure {
+        slug: system.slug,
+        name: system.name,
+        error,
+      }),
+    }
+  }
+
+  if let Some(first) = saved.first() {
+    settings::remember_save_directory(&app, &directory.join(first).to_string_lossy());
+  }
+
+  SaveAllFilteredResponse {
+    success: true,
+    canceled: None,
+    error: None,
+    directory: Some(directory.to_string_lossy().to_string()),
+    saved,
+    failed,
+  }
+}
+
 #[tauri::command]
 pub async fn download_extra(
   app: AppHandle,
@@ -515,7 +769,7 @@ pub async fn download_extra(
     });
   }
 
-  let downloaded = match redump_download::download_extra(&app, &slug, extra_kind).await {
+  let downloaded = match redump_download::download_extra(&app, &slug, extra_kind, extra_kind.label()).await {
     Ok(result) => result,
     Err(error) => {
       return Ok(DownloadExtraResponse {
