@@ -2,6 +2,12 @@
 
 Cross-platform Tauri desktop application for trimming Redump.org DAT collections by region and exporting an updated DAT with rewritten metadata.
 
+## Screenshots
+
+| Main window | Settings |
+| --- | --- |
+| ![Main window with a filtered PlayStation DAT preview](docs/screenshots/main.webp) | ![Settings window with visible systems and default region filters](docs/screenshots/settings.webp) |
+
 ## Features
 
 - Download the latest Redump DAT for a system directly from [redump.info](https://redump.info/downloads) (no manual browser download required).
