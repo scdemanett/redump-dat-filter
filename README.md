@@ -4,9 +4,13 @@ Cross-platform Tauri desktop application for trimming Redump.org DAT collections
 
 ## Screenshots
 
-| Main window | Settings |
-| --- | --- |
-| ![Main window with a filtered PlayStation DAT preview](docs/screenshots/main.webp) | ![Settings window with visible systems and default region filters](docs/screenshots/settings.webp) |
+### Main window
+
+![Main window with a filtered PlayStation DAT preview](docs/screenshots/main.webp)
+
+### Settings
+
+![Settings window with visible systems and default region filters](docs/screenshots/settings.webp)
 
 ## Features
 
