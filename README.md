@@ -56,6 +56,16 @@ Caches live under the Tauri app data directory (not next to the binary), e.g. `%
 
 On first launch after upgrading from the Electron 1.x app, an existing Electron cache under `%APPDATA%\redump-dat-filter\cache\` is copied automatically when the Tauri cache is empty.
 
+### Batch actions for visible systems
+
+The **All visible systems** row works on every system in your visible list (Settings), without loading each one:
+
+- **Update All** re-downloads the DAT for each visible system with an update available, using its DAT / DAT + Serial/Version choice.
+- **Save All Filtered** asks for a folder once, then filters every downloaded visible system by your default regions and saves the DATs there. Systems with no games in those regions are skipped and reported.
+- The arrow next to **Save All Filtered** offers **Download All Cuesheets** / **Download All SBI** for every visible system that provides them.
+
+Existing files with the same name in the chosen folder are overwritten.
+
 ### Open a local DAT
 
 1. Click **Open DAT** (or drag-and-drop) and choose a Redump `.dat` file.
