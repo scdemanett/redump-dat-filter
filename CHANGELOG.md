@@ -14,6 +14,10 @@ All notable changes to this project are documented here.
 
 - Updated npm and Rust dependencies (Tauri 2.12, React 19.3, Vite 8.3).
 
+### Fixed
+
+- Settings: the Visible Systems list now fills its box when the region list grows taller.
+
 ## [2.1.0] - 2026-08-15
 
 ### Added

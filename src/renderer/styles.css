@@ -1140,8 +1140,11 @@ main.app-shell.drag-active .app-container {
   min-height: 18rem;
 }
 
+/* Fill the picker, which stretches to match the region column’s height. */
 .settings-columns .settings-system-picker__list {
-  max-height: min(23rem, 46vh);
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
 }
 
 .settings-system-picker {
@@ -1233,6 +1236,11 @@ main.app-shell.drag-active .app-container {
     padding-left: 0;
     border-top: 1px solid var(--muted-border);
     padding-top: 1.25rem;
+  }
+
+  .settings-columns .settings-system-picker__list {
+    flex: none;
+    max-height: min(23rem, 46vh);
   }
 }
 
