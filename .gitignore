@@ -41,6 +41,9 @@ yarn-error.log*
 /keys/
 /portable-dist/
 
+# Artifact Signing client, downloaded by the release workflow for Windows signing
+/src-tauri/.artifact-signing/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

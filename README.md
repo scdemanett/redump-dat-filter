@@ -109,6 +109,10 @@ Artifacts are published to [GitHub Releases](https://github.com/scdemanett/redum
 
 macOS builds are unsigned. On first launch you may need to right-click the app and choose **Open**, or allow it in **System Settings → Privacy & Security**.
 
+### Code signing
+
+Windows release builds are Authenticode-signed through Azure Artifact Signing (account `scdemanett-signing`, certificate profile `scdemanett-public-trust`, named in `src-tauri/artifact-signing.json`). The overlay `src-tauri/tauri.signed.conf.json` sets `bundle.windows.signCommand` to the Windows SDK's signtool with Microsoft's Artifact Signing dlib, and Tauri runs it on the app exe (the same one that goes into the portable zip), the NSIS installer and uninstaller, and the MSI, before the updater signatures are made. The release workflow logs in with `azure/login` through OIDC (no client secret): the Entra app registration `github-artifact-signing` holds the Artifact Signing Certificate Profile Signer role on the account and a federated credential for this repository's `release` environment, which the Windows build job runs in. Its IDs are the repository variables `AZURE_TENANT_ID` and `AZURE_CLIENT_ID`; without them (forks) the overlay is skipped and builds stay unsigned. Local builds are not Authenticode-signed.
+
 ### App updates
 
 Packaged **installed** builds check GitHub Releases on startup and can download/install updates in-app via **Download update** → **Restart and install** (signed with the Tauri updater minisign key).
