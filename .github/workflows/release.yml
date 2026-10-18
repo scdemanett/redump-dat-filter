@@ -91,9 +91,9 @@ jobs:
           Expand-Archive $pkg -DestinationPath src-tauri\.artifact-signing
 
       # Windows builds add the signing overlay when the Azure variables are
-      # set; Tauri then signs the app exe (also the one in the portable zip),
-      # the NSIS installer and uninstaller, and the MSI, before the updater
-      # signatures are made.
+      # set; Tauri then signs the app exe inside the installers, the NSIS
+      # installer and uninstaller, and the MSI, before the updater signatures
+      # are made.
       - name: Build and publish
         uses: tauri-apps/tauri-action@v0
         env:
@@ -108,6 +108,18 @@ jobs:
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }} ${{ env.SIGN_WINDOWS == 'true' && '--config src-tauri/tauri.signed.conf.json' || '' }}
+
+      # Tauri signs a bundle-type-patched copy of the exe for each installer and
+      # then restores the original, so target/release holds an unsigned exe
+      # again; sign it for the portable zip with the overlay's signCommand.
+      - name: Sign portable exe
+        if: env.SIGN_WINDOWS == 'true'
+        shell: pwsh
+        working-directory: src-tauri
+        run: |
+          $sign = (Get-Content tauri.signed.conf.json -Raw | ConvertFrom-Json).bundle.windows.signCommand
+          & $sign.cmd ($sign.args -replace '^%1$', 'target\release\redump-dat-filter.exe')
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Create portable unpacked zip
         run: node scripts/create-portable-zip.mjs --args "${{ matrix.args }}"
