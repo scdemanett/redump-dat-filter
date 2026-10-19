@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.1] - 2026-10-18
+
+### Changed
+
+- Windows builds (installers and the portable exe) are now Authenticode-signed through Azure Artifact Signing.
+
 ## [2.2.0] - 2026-10-03
 
 ### Added

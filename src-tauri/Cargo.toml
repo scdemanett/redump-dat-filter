@@ -1,6 +1,6 @@
 [package]
 name = "redump-dat-filter"
-version = "2.2.0"
+version = "2.2.1"
 description = "Tauri desktop app for filtering Redump DAT files by region."
 authors = ["Steven Demanett"]
 license = "MIT"
