@@ -22,6 +22,8 @@
     "package:signed": "pwsh -File ./scripts/package.ps1",
     "package:portable": "node ./scripts/create-portable-zip.mjs",
     "tauri": "tauri",
+    "version:check": "node scripts/version.mjs",
+    "bump": "node scripts/version.mjs",
     "test": "tsx --test src/shared/datParser.test.ts && cargo test --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit"
   },

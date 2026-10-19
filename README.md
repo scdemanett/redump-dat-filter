@@ -95,12 +95,16 @@ If no entries match a selection, the preview shows an error and **Save Filtered 
 | `npm run test`      | Run TypeScript parser tests and Rust unit tests.         |
 | `npm run clean`     | Remove `dist/` output.                                   |
 | `npm run typecheck` | Run TypeScript checks without emitting files.            |
+| `npm run version:check` | Verify every file carrying the app version agrees.   |
+| `npm run bump -- <patch\|minor\|major\|X.Y.Z>` | Set the version in all of them at once. |
 
 ## Packaging
 
 `npm run package` / `npm run package:signed` invokes `tauri build` for the current platform.
 
-CI builds all platforms and publishes a release when you push a version tag (`vX.Y.Z`). Running the **Release** workflow from the Actions tab is a dry run: it builds everything and attaches the bundles and portable zips to the workflow run, without creating a tag or release. Each release includes:
+To release, bump with `npm run bump -- patch` (or `minor` / `major` / an explicit version) so `package.json`, `package-lock.json`, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock` never drift, add a `CHANGELOG.md` entry, commit, and push a matching tag (`git tag v2.3.0 && git push origin v2.3.0`). The Release workflow first checks that the version files agree, that the tag matches them, and that the typecheck and tests pass; only then does it build. A tag with a pre-release suffix (`v2.3.0-rc.1`) becomes a GitHub pre-release, which the in-app updater skips.
+
+CI builds all platforms and publishes a release when you push a version tag (`vX.Y.Z`). The release stays a draft until every platform has uploaded. Running the **Release** workflow from the Actions tab is a dry run: it builds everything and attaches the bundles and portable zips to the workflow run, without creating a tag or release. Each release includes:
 
 - **Installers** (NSIS / DMG / AppImage, etc.) with signed Tauri updater artifacts and `latest.json` for in-app updates
 - **Portable zips** named `redump-dat-filter-unpacked-{VERSION}-{OS}-{ARCH}.zip` (extract and run; updates open the GitHub release page)

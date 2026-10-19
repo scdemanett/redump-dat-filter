@@ -1,0 +1,117 @@
+// Single source of truth for Redump DAT Filter's version. Reports or sets the
+// version across every file that carries it, so a release bump is one command
+// instead of hand-editing (and drifting) five files.
+//
+//   node scripts/version.mjs             # check: print every file's version + verify they match
+//   node scripts/version.mjs 2.3.0       # set an explicit version everywhere
+//   node scripts/version.mjs 2.3.0-rc.1  # explicit pre-release (tag v2.3.0-rc.1 → GitHub pre-release)
+//   node scripts/version.mjs patch       # bump patch / minor / major from the current version
+//
+// Files kept in sync: package.json, package-lock.json (top level and the root
+// package entry), src-tauri/tauri.conf.json, src-tauri/Cargo.toml, and the
+// redump-dat-filter entry in src-tauri/Cargo.lock (so a bump commit is
+// complete without needing a rebuild). Edits are targeted replacements, so the
+// diff is only the version line in each file. Ported from Packetboat.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// name → [absolute path, regex whose group 2 is the version]
+const JSON_VERSION_RE = /("version"\s*:\s*")([^"]+)(")/;
+const LOCK_ROOT_PACKAGE_RE = /("packages"\s*:\s*\{\s*""\s*:\s*\{[^{}]*?"version"\s*:\s*")([^"]+)(")/;
+const CARGO_TOML_RE = /(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")/;
+// \r?\n: the working copy may have CRLF endings on Windows (autocrlf rewrites
+// files on checkout), which a bare \n would silently fail to match.
+const CARGO_LOCK_RE = /(name = "redump-dat-filter"\r?\nversion = ")([^"]+)(")/;
+const FILES = {
+  'package.json': [path.join(root, 'package.json'), JSON_VERSION_RE],
+  'package-lock.json': [path.join(root, 'package-lock.json'), JSON_VERSION_RE],
+  'package-lock root': [path.join(root, 'package-lock.json'), LOCK_ROOT_PACKAGE_RE],
+  'tauri.conf.json': [path.join(root, 'src-tauri', 'tauri.conf.json'), JSON_VERSION_RE],
+  'Cargo.toml': [path.join(root, 'src-tauri', 'Cargo.toml'), CARGO_TOML_RE],
+  'Cargo.lock': [path.join(root, 'src-tauri', 'Cargo.lock'), CARGO_LOCK_RE],
+};
+
+const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+const read = (p) => fs.readFileSync(p, 'utf8');
+
+function currentVersions() {
+  const out = {};
+  for (const [name, [p, re]] of Object.entries(FILES)) {
+    out[name] = read(p).match(re)?.[2] ?? null;
+  }
+  return out;
+}
+
+function bump(version, kind) {
+  const parts = version.split('.').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) {
+    throw new Error(`current version "${version}" isn't X.Y.Z — pass an explicit version instead`);
+  }
+  const [maj, min, pat] = parts;
+  if (kind === 'major') return `${maj + 1}.0.0`;
+  if (kind === 'minor') return `${maj}.${min + 1}.0`;
+  return `${maj}.${min}.${pat + 1}`; // patch
+}
+
+function setVersion(version) {
+  const updated = [];
+  for (const [name, [p, re]] of Object.entries(FILES)) {
+    const text = read(p);
+    if (!re.test(text)) {
+      // Cargo.lock is regenerated on the next build, so a miss there is a warning.
+      if (name === 'Cargo.lock') {
+        console.warn(`warning: no redump-dat-filter entry in Cargo.lock (it'll update on the next build)`);
+        continue;
+      }
+      throw new Error(`couldn't find the version field in ${name}`);
+    }
+    fs.writeFileSync(p, text.replace(re, `$1${version}$3`));
+    updated.push(name);
+  }
+  return updated;
+}
+
+function main() {
+  const arg = process.argv[2];
+  const cur = currentVersions();
+  const distinct = new Set(Object.values(cur).filter(Boolean));
+
+  if (!arg) {
+    for (const [name, v] of Object.entries(cur)) {
+      console.log(`  ${name.padEnd(18)} ${v ?? '(not found)'}`);
+    }
+    if (distinct.size === 1 && !Object.values(cur).includes(null)) {
+      console.log(`\nAll in sync at ${[...distinct][0]}.`);
+    } else {
+      console.error('\nVERSIONS OUT OF SYNC — run `npm run bump -- <X.Y.Z>` to fix.');
+      process.exit(1);
+    }
+    return;
+  }
+
+  let target;
+  if (SEMVER.test(arg)) {
+    target = arg;
+  } else if (['patch', 'minor', 'major'].includes(arg)) {
+    if (distinct.size !== 1) {
+      console.error('Versions are out of sync; pass an explicit X.Y.Z rather than a bump keyword.');
+      process.exit(1);
+    }
+    target = bump([...distinct][0], arg);
+  } else {
+    console.error('Usage: node scripts/version.mjs [<X.Y.Z>[-pre] | patch | minor | major]');
+    process.exit(1);
+  }
+
+  // Name exactly what was updated, so a skipped file is visible in the
+  // summary and not just in a warning line above it.
+  const updated = setVersion(target);
+  console.log(`Version set to ${target} (${updated.join(', ')}).`);
+  console.log(`Next: add a CHANGELOG entry, commit, then tag the release — git tag v${target}`);
+}
+
+main();
