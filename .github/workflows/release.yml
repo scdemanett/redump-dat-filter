@@ -173,9 +173,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.label }}
-          path: |
-            ${{ join(fromJSON(steps.tauri_build.outputs.artifactPaths), '\n') }}
-            portable-dist/redump-dat-filter-unpacked-*.zip
+          # Double-quoted so YAML turns each \n into a newline (one path per
+          # line); in a block scalar the expression would get a literal "\n".
+          path: "${{ join(fromJSON(steps.tauri_build.outputs.artifactPaths), '\n') }}\nportable-dist/redump-dat-filter-unpacked-*.zip"
 
   # The updater reads latest.json from the latest published release, so only
   # publish once all platform builds have added their assets and entries.
