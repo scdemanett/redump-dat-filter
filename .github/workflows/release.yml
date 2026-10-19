@@ -12,7 +12,16 @@ permissions:
   contents: write
 
 jobs:
+  # Gate the release — before any platform build — on the CI checks: version
+  # files in sync, the tag matching them (on a tag push), typecheck, tests and
+  # the frontend build. A failure here stops every build and no release is made.
+  verify:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish-tauri:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -99,7 +108,9 @@ jobs:
       # Windows builds add the signing overlay when the Azure variables are
       # set; Tauri then signs the app exe inside the installers, the NSIS
       # installer and uninstaller, and the MSI, before the updater signatures
-      # are made.
+      # are made. A pre-release tag carries a pre-release version (the verify
+      # job checks they match), which MSI accepts only when numeric and RPM not
+      # at all, so pre-release tags skip both; the updater uses NSIS and AppImage.
       - name: Build and publish
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
@@ -115,7 +126,7 @@ jobs:
           # Stays a draft until every platform has uploaded; see publish-release below.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          args: ${{ matrix.args }} ${{ env.SIGN_WINDOWS == 'true' && '--config src-tauri/tauri.signed.conf.json' || '' }}
+          args: ${{ matrix.args }} ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref_name, '-') && '--config {"bundle":{"targets":["app","dmg","appimage","deb","nsis"]}}' || '' }} ${{ env.SIGN_WINDOWS == 'true' && '--config src-tauri/tauri.signed.conf.json' || '' }}
 
       # Tauri signs a bundle-type-patched copy of the exe for each installer and
       # then restores the original, so target/release holds an unsigned exe
