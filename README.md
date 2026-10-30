@@ -1,5 +1,10 @@
 # Redump DAT Filter
 
+[![Latest release](https://img.shields.io/github/v/release/scdemanett/redump-dat-filter?label=release)](https://github.com/scdemanett/redump-dat-filter/releases/latest)
+[![CI](https://github.com/scdemanett/redump-dat-filter/actions/workflows/ci.yml/badge.svg)](https://github.com/scdemanett/redump-dat-filter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/scdemanett/redump-dat-filter/total)](https://github.com/scdemanett/redump-dat-filter/releases)
+
 Cross-platform Tauri desktop application for trimming Redump.org DAT collections by region and exporting an updated DAT with rewritten metadata.
 
 ## Screenshots
